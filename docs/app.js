@@ -54,13 +54,16 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const state = {
-    buildHash: "dd5ae9b",
+    buildHash: "8c3fe90",
     view: "week",
     weekStartISO: getCurrentWeekStartISO(),
     expandedRecipeId: null,
     activeModal: null,
     activeRecipeId: null,
     infoMessage: "",
+    selectorOpen: { open: false, dateISO: "", meal: "lunch", index: 0 },
+    recipeQuery: "",
+    pendingWeekScroll: true,
     recipeChecks: {},
     plans: {},
     recipes: [
@@ -92,7 +95,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = "dd5ae9b";
+  const BUILD_FALLBACK = "8c3fe90";
 
   function ensureWeekPlan(weekStartISO, template) {
     if (state.plans[weekStartISO]) return state.plans[weekStartISO];
@@ -155,17 +158,6 @@ document.addEventListener("DOMContentLoaded", () => {
     return weekStartISO === getCurrentWeekStartISO();
   }
 
-  function getOrderedWeekDates(weekStartISO) {
-    const weekDates = getWeekDates(weekStartISO);
-    if (!isCurrentWeek(weekStartISO)) return weekDates;
-
-    const todayISO = toISODate(startOfLocalDay(new Date()));
-    const todayIndex = weekDates.findIndex((entry) => entry.dateISO === todayISO);
-    if (todayIndex <= 0) return weekDates;
-
-    return [...weekDates.slice(todayIndex), ...weekDates.slice(0, todayIndex)];
-  }
-
   function getRecipe(recipeId) {
     return state.recipes.find((recipe) => recipe.id === recipeId);
   }
@@ -209,6 +201,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!getRecipe(recipeId)) return;
     state.activeModal = "recipe";
     state.activeRecipeId = recipeId;
+    state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
     render();
   }
 
@@ -224,10 +217,20 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
 
+  function openRecipeSelector(dateISO, meal, index) {
+    state.activeModal = "recipe-selector";
+    state.activeRecipeId = null;
+    state.recipeQuery = "";
+    state.selectorOpen = { open: true, dateISO, meal, index };
+    render();
+  }
+
   function closeActiveModal() {
     state.activeModal = null;
     state.activeRecipeId = null;
     state.infoMessage = "";
+    state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
+    state.recipeQuery = "";
     render();
   }
 
@@ -242,20 +245,15 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.replace(url.toString());
   }
 
-  function resolveRecipeId(entry) {
-    if (!entry) return null;
-    if (entry.recipeId && getRecipe(entry.recipeId)) return entry.recipeId;
-    const matchedRecipe = findRecipeByTitle(entry.title);
-    return matchedRecipe ? matchedRecipe.id : null;
+  function assignRecipeToSlot(dateISO, meal, index, recipeId) {
+    const weekPlan = getWeekPlan(state.weekStartISO);
+    if (!weekPlan.days[dateISO]) weekPlan.days[dateISO] = createEmptyDayPlan();
+    weekPlan.days[dateISO][meal][index] = recipeId;
+    closeActiveModal();
   }
 
-  function openWeekPlate(entry) {
-    const recipeId = resolveRecipeId(entry);
-    if (recipeId) {
-      openRecipeModal(recipeId);
-      return;
-    }
-    openInfoModal("No hay receta vinculada aun");
+  function clearRecipeSlot(dateISO, meal, index) {
+    assignRecipeToSlot(dateISO, meal, index, null);
   }
 
   function toggleRecipeStep(recipeId, stepIndex) {
@@ -379,6 +377,73 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
+  function renderRecipeSelectorModal() {
+    if (state.activeModal !== "recipe-selector" || !state.selectorOpen.open) return "";
+
+    const recipes = [...state.recipes]
+      .sort((a, b) => a.title.localeCompare(b.title, "es"))
+      .filter((recipe) => recipe.title.toLocaleLowerCase("es").includes(state.recipeQuery.trim().toLocaleLowerCase("es")));
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="recipe-selector-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="recipe-selector-title">Elegir receta</h2>
+              <div class="modal-time">Selecciona una receta para este plato</div>
+            </div>
+          </div>
+
+          <div class="modal-body">
+            <div class="selector-search">
+              <input class="selector-input" type="search" placeholder="Buscar receta" value="${state.recipeQuery}" data-recipe-query>
+            </div>
+            <div class="selector-list">
+              ${recipes.length ? recipes.map((recipe) => `
+                <button class="selector-item" data-assign-recipe="${recipe.id}">
+                  <span class="selector-item-title">${recipe.title}</span>
+                  <span class="selector-item-meta">${recipe.category || "Otro"} · ${recipe.timeMin || 0} min</span>
+                </button>
+              `).join("") : `
+                <div class="modal-item">No hay recetas para esa busqueda</div>
+              `}
+            </div>
+          </div>
+
+          <div class="modal-actions modal-actions-stack">
+            <button class="open-recipe selector-clear" data-clear-slot>Vaciar plato</button>
+            <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function scheduleWeekScroll() {
+    if (state.view !== "week" || !state.pendingWeekScroll) return;
+    state.pendingWeekScroll = false;
+    if (!isCurrentWeek(state.weekStartISO)) return;
+
+    const todayISO = toISODate(startOfLocalDay(new Date()));
+    requestAnimationFrame(() => {
+      const dayElement = document.getElementById(`day-${todayISO}`);
+      if (dayElement) {
+        dayElement.scrollIntoView({ block: "start", behavior: "smooth" });
+      }
+    });
+  }
+
+  function scheduleSelectorFocus() {
+    if (state.activeModal !== "recipe-selector") return;
+    requestAnimationFrame(() => {
+      const input = document.querySelector("[data-recipe-query]");
+      if (!input) return;
+      input.focus();
+      const queryLength = input.value.length;
+      input.setSelectionRange(queryLength, queryLength);
+    });
+  }
+
   function refreshBuildHash() {
     fetch("https://api.github.com/repos/jrodriguezpolo-cell/mi-cocina/commits/main", { cache: "no-store" })
       .then((response) => {
@@ -423,13 +488,16 @@ document.addEventListener("DOMContentLoaded", () => {
       </main>
 
       ${renderRecipeModal()}
+      ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
       ${renderInfoModal()}
     `;
 
     root.querySelectorAll("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        state.view = btn.getAttribute("data-view");
+        const nextView = btn.getAttribute("data-view");
+        if (nextView === "week" && state.view !== "week") state.pendingWeekScroll = true;
+        state.view = nextView;
         state.expandedRecipeId = null;
         render();
       });
@@ -459,6 +527,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const nextWeekStart = addDays(fromISODate(state.weekStartISO), direction);
         state.weekStartISO = toISODate(nextWeekStart);
         ensureWeekPlan(state.weekStartISO);
+        state.pendingWeekScroll = true;
         render();
       });
     });
@@ -470,12 +539,20 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    root.querySelectorAll("[data-week-recipe]").forEach((btn) => {
+    root.querySelectorAll("[data-open-recipe-selector]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        openWeekPlate({
-          recipeId: btn.getAttribute("data-recipe-id") || "",
-          title: btn.getAttribute("data-title") || ""
-        });
+        openRecipeSelector(
+          btn.getAttribute("data-date-iso") || "",
+          btn.getAttribute("data-meal") || "lunch",
+          Number(btn.getAttribute("data-index") || 0)
+        );
+      });
+    });
+
+    root.querySelectorAll("[data-view-week-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const recipeId = btn.getAttribute("data-view-week-recipe");
+        if (recipeId) openRecipeModal(recipeId);
       });
     });
 
@@ -485,6 +562,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const dateISO = select.getAttribute("data-work-status");
         if (!dateISO || !weekPlan.days[dateISO]) return;
         weekPlan.days[dateISO].workStatus = select.value;
+      });
+    });
+
+    root.querySelectorAll("[data-recipe-query]").forEach((input) => {
+      input.addEventListener("input", () => {
+        state.recipeQuery = input.value;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-assign-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const { dateISO, meal, index } = state.selectorOpen;
+        assignRecipeToSlot(dateISO, meal, index, btn.getAttribute("data-assign-recipe"));
+      });
+    });
+
+    root.querySelectorAll("[data-clear-slot]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const { dateISO, meal, index } = state.selectorOpen;
+        clearRecipeSlot(dateISO, meal, index);
       });
     });
 
@@ -505,11 +603,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (event.target === overlay) closeActiveModal();
       });
     });
+
+    scheduleWeekScroll();
+    scheduleSelectorFocus();
   }
 
   function renderWeek() {
     const weekPlan = getWeekPlan(state.weekStartISO);
-    const orderedWeekDates = getOrderedWeekDates(state.weekStartISO);
+    const orderedWeekDates = getWeekDates(state.weekStartISO);
     const todayISO = toISODate(startOfLocalDay(new Date()));
 
     return `
@@ -526,7 +627,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const isToday = dateISO === todayISO && isCurrentWeek(state.weekStartISO);
 
             return `
-            <div class="day">
+            <div class="day" id="day-${dateISO}">
               <div class="day-head">
                 <div class="day-title">${formatDayLabel(date)}</div>
                 ${isToday ? `<span class="today-badge">HOY</span>` : ""}
@@ -538,15 +639,21 @@ document.addEventListener("DOMContentLoaded", () => {
                   ${dayPlan.lunch.map((recipeId, index) => {
                     const plate = getPlateEntry(recipeId);
                     return `
-                    <button
-                      class="meal-plate"
-                      data-week-recipe
-                      data-recipe-id="${plate.recipeId}"
-                      data-title="${plate.title}"
-                    >
-                      <span class="meal-plate-index">P${index + 1}</span>
-                      <span class="meal-plate-title">${plate.title}</span>
-                    </button>
+                    <div class="meal-plate">
+                      <button
+                        class="meal-plate-main"
+                        data-open-recipe-selector
+                        data-date-iso="${dateISO}"
+                        data-meal="lunch"
+                        data-index="${index}"
+                      >
+                        <span class="meal-plate-index">P${index + 1}</span>
+                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? plate.title : "+ Añadir"}</span>
+                      </button>
+                      ${plate.recipeId ? `
+                        <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
+                      ` : ""}
+                    </div>
                   `;
                   }).join("")}
                 </div>
@@ -557,15 +664,21 @@ document.addEventListener("DOMContentLoaded", () => {
                   ${dayPlan.dinner.map((recipeId, index) => {
                     const plate = getPlateEntry(recipeId);
                     return `
-                    <button
-                      class="meal-plate"
-                      data-week-recipe
-                      data-recipe-id="${plate.recipeId}"
-                      data-title="${plate.title}"
-                    >
-                      <span class="meal-plate-index">P${index + 1}</span>
-                      <span class="meal-plate-title">${plate.title}</span>
-                    </button>
+                    <div class="meal-plate">
+                      <button
+                        class="meal-plate-main"
+                        data-open-recipe-selector
+                        data-date-iso="${dateISO}"
+                        data-meal="dinner"
+                        data-index="${index}"
+                      >
+                        <span class="meal-plate-index">P${index + 1}</span>
+                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? plate.title : "+ Añadir"}</span>
+                      </button>
+                      ${plate.recipeId ? `
+                        <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
+                      ` : ""}
+                    </div>
                   `;
                   }).join("")}
                 </div>
