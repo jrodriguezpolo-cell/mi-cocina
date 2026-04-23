@@ -486,6 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
     prefs: { ...DEFAULT_PREFS, quotas: { ...DEFAULT_PREFS.quotas } },
     toastMessage: "",
     historyMonthISO: getCurrentMonthISO(),
+    historyDetail: { type: "", value: "" },
     recipeEditor: {
       mode: "create",
       draft: createRecipeDraft()
@@ -571,6 +572,24 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${WEEKDAY_SHORT[weekdayIndex]} ${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`;
   }
 
+  function formatOccurrenceDate(dateISO) {
+    const date = fromISODate(dateISO);
+    const weekdayIndex = (date.getDay() + 6) % 7;
+    return `${WEEKDAY_SHORT[weekdayIndex]} ${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()}`;
+  }
+
+  function getMealLabel(meal) {
+    return meal === "dinner" ? "Cena" : "Comida";
+  }
+
+  function getMealIcon(meal) {
+    return meal === "dinner" ? "🌙" : "🍽️";
+  }
+
+  function getPlateLabel(index) {
+    return `P${Number(index) + 1}`;
+  }
+
   function isCurrentWeek(weekStartISO) {
     return weekStartISO === getCurrentWeekStartISO();
   }
@@ -647,6 +666,23 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
 
+  function openHistoryRecipeDetail(recipeId) {
+    state.historyDetail = { type: "recipe", value: recipeId };
+    state.activeModal = "history-recipe-detail";
+    render();
+  }
+
+  function openHistoryCategoryDetail(category) {
+    state.historyDetail = { type: "category", value: category };
+    state.activeModal = "history-category-detail";
+    render();
+  }
+
+  function openWeekQuickSummaryModal() {
+    state.activeModal = "history-week-summary";
+    render();
+  }
+
   function openPreferencesModal() {
     state.activeModal = "preferences";
     state.prefQuery = "";
@@ -683,6 +719,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function closeHistoryStatsModal() {
     state.activeModal = "tools";
+    render();
+  }
+
+  function closeHistoryDetailModal() {
+    state.activeModal = "history-stats";
+    state.historyDetail = { type: "", value: "" };
+    render();
+  }
+
+  function goToWeek(weekStartISO) {
+    if (!weekStartISO) return;
+    state.weekStartISO = weekStartISO;
+    state.view = "week";
+    state.pendingWeekScroll = true;
+    ensureWeekPlan(state.weekStartISO);
+    state.activeModal = null;
+    state.historyDetail = { type: "", value: "" };
     render();
   }
 
@@ -1076,9 +1129,8 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
-  function getMonthlyStats(monthISO) {
-    const countsByRecipeId = new Map();
-    const countsByCategory = new Map(CATEGORY_OPTIONS.map((category) => [category, 0]));
+  function getOccurrencesForMonth(monthISO) {
+    const occurrences = [];
     const weeksInMonth = [];
 
     Object.entries(state.plans)
@@ -1091,21 +1143,39 @@ document.addEventListener("DOMContentLoaded", () => {
           if (!isDateInMonth(dateISO, monthISO)) return;
           weekHasMonthDay = true;
 
-          [...(Array.isArray(dayPlan?.lunch) ? dayPlan.lunch : []), ...(Array.isArray(dayPlan?.dinner) ? dayPlan.dinner : [])]
-            .filter(Boolean)
-            .forEach((recipeId) => {
-              const safeRecipeId = String(recipeId);
-              countsByRecipeId.set(safeRecipeId, (countsByRecipeId.get(safeRecipeId) || 0) + 1);
-
-              const recipe = getRecipe(safeRecipeId);
-              if (!recipe) return;
-              const category = recipe.category || "Otro";
-              countsByCategory.set(category, (countsByCategory.get(category) || 0) + 1);
+          ["lunch", "dinner"].forEach((meal) => {
+            const slots = Array.isArray(dayPlan?.[meal]) ? dayPlan[meal] : [];
+            slots.forEach((recipeId, index) => {
+              if (!recipeId) return;
+              occurrences.push({
+                weekStartISO,
+                dateISO,
+                recipeId: String(recipeId),
+                meal,
+                index
+              });
             });
+          });
         });
 
         if (weekHasMonthDay) weeksInMonth.push(weekStartISO);
       });
+
+    return { occurrences, weeksInMonth };
+  }
+
+  function getMonthlyStats(monthISO) {
+    const { occurrences, weeksInMonth } = getOccurrencesForMonth(monthISO);
+    const countsByRecipeId = new Map();
+    const countsByCategory = new Map(CATEGORY_OPTIONS.map((category) => [category, 0]));
+
+    occurrences.forEach((occurrence) => {
+      countsByRecipeId.set(occurrence.recipeId, (countsByRecipeId.get(occurrence.recipeId) || 0) + 1);
+      const recipe = getRecipe(occurrence.recipeId);
+      if (!recipe) return;
+      const category = recipe.category || "Otro";
+      countsByCategory.set(category, (countsByCategory.get(category) || 0) + 1);
+    });
 
     const topRecipes = [...countsByRecipeId.entries()]
       .map(([recipeId, count]) => {
@@ -1120,10 +1190,63 @@ document.addEventListener("DOMContentLoaded", () => {
       .slice(0, 10);
 
     return {
+      occurrences,
       topRecipes,
       countsByCategory,
       weeksInMonth
     };
+  }
+
+  function groupOccurrencesByWeek(occurrences) {
+    const groups = new Map();
+
+    [...occurrences]
+      .sort((left, right) => left.dateISO.localeCompare(right.dateISO) || left.meal.localeCompare(right.meal) || left.index - right.index)
+      .forEach((occurrence) => {
+        if (!groups.has(occurrence.weekStartISO)) groups.set(occurrence.weekStartISO, []);
+        groups.get(occurrence.weekStartISO).push(occurrence);
+      });
+
+    return [...groups.entries()].map(([weekStartISO, items]) => ({
+      weekStartISO,
+      items
+    }));
+  }
+
+  function getCurrentWeekStats() {
+    const weekPlan = getWeekPlan(state.weekStartISO);
+    const occurrences = [];
+    const countsByCategory = new Map(CATEGORY_OPTIONS.map((category) => [category, 0]));
+    const countsByRecipeId = new Map();
+
+    Object.entries(weekPlan.days || {})
+      .sort(([leftDateISO], [rightDateISO]) => leftDateISO.localeCompare(rightDateISO))
+      .forEach(([dateISO, dayPlan]) => {
+        ["lunch", "dinner"].forEach((meal) => {
+          const slots = Array.isArray(dayPlan?.[meal]) ? dayPlan[meal] : [];
+          slots.forEach((recipeId, index) => {
+            if (!recipeId) return;
+            const safeRecipeId = String(recipeId);
+            occurrences.push({ weekStartISO: state.weekStartISO, dateISO, recipeId: safeRecipeId, meal, index });
+            countsByRecipeId.set(safeRecipeId, (countsByRecipeId.get(safeRecipeId) || 0) + 1);
+            const recipe = getRecipe(safeRecipeId);
+            if (!recipe) return;
+            const category = recipe.category || "Otro";
+            countsByCategory.set(category, (countsByCategory.get(category) || 0) + 1);
+          });
+        });
+      });
+
+    const topRecipes = [...countsByRecipeId.entries()]
+      .map(([recipeId, count]) => ({
+        recipeId,
+        count,
+        title: getRecipe(recipeId)?.title || "Receta eliminada"
+      }))
+      .sort((left, right) => right.count - left.count || left.title.localeCompare(right.title, "es"))
+      .slice(0, 10);
+
+    return { occurrences, countsByCategory, topRecipes };
   }
 
   function renderHistoryStatsModal() {
@@ -1149,16 +1272,20 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="history-month-label">${monthLabel}</div>
                 <button class="week-nav" data-history-month="1" aria-label="Mes siguiente">▶</button>
               </div>
+              <button class="tool-item history-summary-button" data-open-week-summary>
+                <span class="tool-title">Resumen rápido semana actual</span>
+                <span class="tool-subtitle">${formatWeekRangeShort(state.weekStartISO)}</span>
+              </button>
             </section>
 
             <section class="modal-section">
               <h3 class="modal-section-title">Recetas más repetidas del mes</h3>
               <div class="history-card-list">
                 ${monthlyStats.topRecipes.length ? monthlyStats.topRecipes.map((entry) => `
-                  <div class="history-row">
+                  <button class="history-row history-row-button" data-open-history-recipe="${entry.recipeId}">
                     <span class="history-row-label">${escapeHTML(entry.title)}</span>
                     <span class="history-row-value">${entry.count}</span>
-                  </div>
+                  </button>
                 `).join("") : `<div class="modal-item">No hay platos guardados en este mes</div>`}
               </div>
             </section>
@@ -1167,10 +1294,10 @@ document.addEventListener("DOMContentLoaded", () => {
               <h3 class="modal-section-title">Por categoría (mes)</h3>
               <div class="history-card-list">
                 ${CATEGORY_OPTIONS.map((category) => `
-                  <div class="history-row">
+                  <button class="history-row history-row-button" data-open-history-category="${category}">
                     <span class="history-row-label">${category}</span>
                     <span class="history-row-value">${monthlyStats.countsByCategory.get(category) || 0}</span>
-                  </div>
+                  </button>
                 `).join("")}
               </div>
             </section>
@@ -1190,6 +1317,140 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <div class="modal-actions">
             <button class="primary close-modal" data-close-history-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHistoryRecipeDetailModal() {
+    if (state.activeModal !== "history-recipe-detail") return "";
+
+    const recipeId = state.historyDetail.value;
+    const monthlyStats = getMonthlyStats(state.historyMonthISO);
+    const recipe = getRecipe(recipeId);
+    const title = recipe ? recipe.title : "Receta eliminada";
+    const grouped = groupOccurrencesByWeek(monthlyStats.occurrences.filter((occurrence) => occurrence.recipeId === recipeId));
+
+    return `
+      <div class="modal-overlay" data-detail-overlay>
+        <div class="modal-card modal-card-history" role="dialog" aria-modal="true" aria-labelledby="history-recipe-detail-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="history-recipe-detail-title">Detalle: ${escapeHTML(title)}</h2>
+              <div class="modal-time">${formatMonthLabel(state.historyMonthISO)}</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            ${grouped.length ? grouped.map((group) => `
+              <section class="modal-section">
+                <div class="history-group-head">
+                  <span class="history-group-title">${formatWeekRangeShort(group.weekStartISO)}</span>
+                  <button class="open-recipe" data-go-to-week="${group.weekStartISO}">Ver semana</button>
+                </div>
+                <div class="history-occurrence-list">
+                  ${group.items.map((occurrence) => `
+                    <div class="history-occurrence-item">
+                      <span class="history-occurrence-text">${getMealIcon(occurrence.meal)} ${formatOccurrenceDate(occurrence.dateISO)} · ${getMealLabel(occurrence.meal)} · ${getPlateLabel(occurrence.index)}</span>
+                    </div>
+                  `).join("")}
+                </div>
+              </section>
+            `).join("") : `<div class="modal-item">No hay ocurrencias en este mes</div>`}
+          </div>
+          <div class="modal-actions">
+            <button class="primary" data-close-detail-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderHistoryCategoryDetailModal() {
+    if (state.activeModal !== "history-category-detail") return "";
+
+    const category = state.historyDetail.value;
+    const monthlyStats = getMonthlyStats(state.historyMonthISO);
+    const groupedWeeks = groupOccurrencesByWeek(
+      monthlyStats.occurrences.filter((occurrence) => getRecipeCategory(occurrence.recipeId) === category)
+    );
+
+    return `
+      <div class="modal-overlay" data-detail-overlay>
+        <div class="modal-card modal-card-history" role="dialog" aria-modal="true" aria-labelledby="history-category-detail-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="history-category-detail-title">Categoría: ${escapeHTML(category)}</h2>
+              <div class="modal-time">${formatMonthLabel(state.historyMonthISO)}</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            ${groupedWeeks.length ? groupedWeeks.map((group) => `
+              <section class="modal-section">
+                <div class="history-group-head">
+                  <span class="history-group-title">${formatWeekRangeShort(group.weekStartISO)}</span>
+                  <button class="open-recipe" data-go-to-week="${group.weekStartISO}">Ver semana</button>
+                </div>
+                <div class="history-occurrence-list">
+                  ${group.items.map((occurrence) => `
+                    <div class="history-occurrence-item">
+                      <span class="history-occurrence-title">${escapeHTML(getRecipe(occurrence.recipeId)?.title || "Receta eliminada")}</span>
+                      <span class="history-occurrence-text">${getMealIcon(occurrence.meal)} ${formatOccurrenceDate(occurrence.dateISO)} · ${getMealLabel(occurrence.meal)} · ${getPlateLabel(occurrence.index)}</span>
+                    </div>
+                  `).join("")}
+                </div>
+              </section>
+            `).join("") : `<div class="modal-item">No hay ocurrencias en este mes</div>`}
+          </div>
+          <div class="modal-actions">
+            <button class="primary" data-close-detail-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderWeekQuickSummaryModal() {
+    if (state.activeModal !== "history-week-summary") return "";
+
+    const weekStats = getCurrentWeekStats();
+
+    return `
+      <div class="modal-overlay" data-detail-overlay>
+        <div class="modal-card modal-card-history" role="dialog" aria-modal="true" aria-labelledby="history-week-summary-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="history-week-summary-title">Resumen rápido semana actual</h2>
+              <div class="modal-time">${formatWeekRangeShort(state.weekStartISO)}</div>
+            </div>
+          </div>
+          <div class="modal-body">
+            <section class="modal-section">
+              <h3 class="modal-section-title">Por categoría</h3>
+              <div class="history-card-list">
+                ${CATEGORY_OPTIONS.map((category) => `
+                  <div class="history-row">
+                    <span class="history-row-label">${category}</span>
+                    <span class="history-row-value">${weekStats.countsByCategory.get(category) || 0}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </section>
+            <section class="modal-section">
+              <h3 class="modal-section-title">Top recetas de la semana</h3>
+              <div class="history-card-list">
+                ${weekStats.topRecipes.length ? weekStats.topRecipes.map((entry) => `
+                  <div class="history-row">
+                    <span class="history-row-label">${escapeHTML(entry.title)}</span>
+                    <span class="history-row-value">${entry.count}</span>
+                  </div>
+                `).join("") : `<div class="modal-item">No hay platos en esta semana</div>`}
+              </div>
+            </section>
+          </div>
+          <div class="modal-actions modal-actions-stack">
+            <button class="open-recipe" data-go-to-week="${state.weekStartISO}">Ir a semana</button>
+            <button class="primary" data-close-detail-button>Cerrar</button>
           </div>
         </div>
       </div>
@@ -1466,6 +1727,9 @@ document.addEventListener("DOMContentLoaded", () => {
       ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
       ${renderHistoryStatsModal()}
+      ${renderHistoryRecipeDetailModal()}
+      ${renderHistoryCategoryDetailModal()}
+      ${renderWeekQuickSummaryModal()}
       ${renderPreferencesModal()}
       ${renderInfoModal()}
       ${state.toastMessage ? `<div class="toast">${state.toastMessage}</div>` : ""}
@@ -1606,16 +1870,31 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    root.querySelectorAll("[data-open-week-summary]").forEach((btn) => {
+      btn.addEventListener("click", openWeekQuickSummaryModal);
+    });
+
+    root.querySelectorAll("[data-open-history-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openHistoryRecipeDetail(btn.getAttribute("data-open-history-recipe") || "");
+      });
+    });
+
+    root.querySelectorAll("[data-open-history-category]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openHistoryCategoryDetail(btn.getAttribute("data-open-history-category") || "");
+      });
+    });
+
     root.querySelectorAll("[data-open-history-week]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const weekStartISO = btn.getAttribute("data-open-history-week");
-        if (!weekStartISO) return;
-        state.weekStartISO = weekStartISO;
-        state.view = "week";
-        state.pendingWeekScroll = true;
-        ensureWeekPlan(state.weekStartISO);
-        state.activeModal = null;
-        render();
+        goToWeek(btn.getAttribute("data-open-history-week") || "");
+      });
+    });
+
+    root.querySelectorAll("[data-go-to-week]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        goToWeek(btn.getAttribute("data-go-to-week") || "");
       });
     });
 
@@ -1672,6 +1951,10 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", closeHistoryStatsModal);
     });
 
+    root.querySelectorAll("[data-close-detail-button]").forEach((btn) => {
+      btn.addEventListener("click", closeHistoryDetailModal);
+    });
+
     root.querySelectorAll("[data-close-modal]").forEach((overlay) => {
       overlay.addEventListener("click", (event) => {
         if (event.target === overlay) closeActiveModal();
@@ -1681,6 +1964,12 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-history-overlay]").forEach((overlay) => {
       overlay.addEventListener("click", (event) => {
         if (event.target === overlay) closeHistoryStatsModal();
+      });
+    });
+
+    root.querySelectorAll("[data-detail-overlay]").forEach((overlay) => {
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closeHistoryDetailModal();
       });
     });
 
@@ -1837,6 +2126,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Escape" &&
+      (state.activeModal === "history-recipe-detail" || state.activeModal === "history-category-detail" || state.activeModal === "history-week-summary")
+    ) {
+      closeHistoryDetailModal();
+      return;
+    }
     if (event.key === "Escape" && state.activeModal === "history-stats") {
       closeHistoryStatsModal();
       return;
