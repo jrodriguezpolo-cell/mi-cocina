@@ -5,6 +5,7 @@
   --text:#e7eefc;
   --accent:#4f8cff;
   --border:rgba(255,255,255,.08);
+  --headerH:140px;
 }
 *{box-sizing:border-box}
 body{
@@ -53,6 +54,11 @@ body.modal-open{overflow:hidden}
   line-height:1;
 }
 .tabs{display:flex; gap:10px}
+.week-header{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 116px;
+  gap:10px;
+}
 .tab{
   flex:1;
   padding:10px 12px;
@@ -72,6 +78,7 @@ body.modal-open{overflow:hidden}
   gap:6px;
   align-items:center;
   padding:8px;
+  min-width:0;
 }
 .week-nav-tab{
   width:28px;
@@ -89,6 +96,19 @@ body.modal-open{overflow:hidden}
   font-size:12px;
   font-weight:800;
   text-align:center;
+}
+.week-header-actions{
+  display:grid;
+  grid-template-rows:1fr 1fr;
+  gap:8px;
+}
+.week-side-button{
+  width:100%;
+  min-height:34px;
+  padding:8px 10px;
+}
+.week-side-primary{
+  min-height:34px;
 }
 .content{padding:14px; max-width:980px; margin:0 auto}
 .card{
@@ -140,17 +160,9 @@ body.modal-open{overflow:hidden}
 .week-autofill{
   width:100%;
 }
-.week-header-bar{
-  position:sticky;
-  top:108px;
-  z-index:9;
-  margin:-14px -14px 10px;
-  padding:12px 14px 10px;
-  border-bottom:1px solid var(--border);
-  background:rgba(17,26,46,.98);
-}
 .week-grid{
-  margin-top:12px;
+  margin-top:calc(-1 * var(--headerH));
+  padding-top:calc(var(--headerH) + 12px);
   display:grid;
   grid-template-columns:1fr;
   gap:12px;
@@ -160,7 +172,7 @@ body.modal-open{overflow:hidden}
   border-radius:14px;
   padding:12px;
   background:rgba(255,255,255,.03);
-  scroll-margin-top:180px;
+  scroll-margin-top:calc(var(--headerH) + 12px);
 }
 .day-head{
   display:flex;

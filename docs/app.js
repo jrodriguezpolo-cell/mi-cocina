@@ -881,11 +881,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         return;
       }
-
-      const weekPanel = document.getElementById("week-panel");
-      if (weekPanel) {
-        weekPanel.scrollIntoView({ block: "start", behavior: "smooth" });
-      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
   }
 
@@ -927,6 +923,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
   }
 
+  function updateHeaderHeight() {
+    const headerEl = document.querySelector(".topbar");
+    const headerHeight = headerEl ? headerEl.offsetHeight : 0;
+    document.documentElement.style.setProperty("--headerH", `${headerHeight}px`);
+  }
+
   window.openRecipeModal = openRecipeModal;
 
   function render() {
@@ -944,14 +946,24 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="icon-button" data-open-tools aria-label="Herramientas">⚙️</button>
           </div>
         </div>
-        <nav class="tabs">
-          <div class="tab week-tab ${state.view === "week" ? "active" : ""}">
-            <button class="week-nav week-nav-tab" data-week-nav="prev" aria-label="Semana anterior">◀</button>
-            <button class="week-range week-range-tab" data-view="week">${formatWeekRange(state.weekStartISO)}</button>
-            <button class="week-nav week-nav-tab" data-week-nav="next" aria-label="Semana siguiente">▶</button>
+        ${state.view === "week" ? `
+          <div class="week-header" id="weekHeader">
+            <div class="tab week-tab active">
+              <button class="week-nav week-nav-tab" data-week-nav="prev" aria-label="Semana anterior">◀</button>
+              <button class="week-range week-range-tab" data-view="week">${formatWeekRange(state.weekStartISO)}</button>
+              <button class="week-nav week-nav-tab" data-week-nav="next" aria-label="Semana siguiente">▶</button>
+            </div>
+            <div class="week-header-actions">
+              <button class="tab week-side-button" data-view="recipes">Recetas</button>
+              <button class="primary week-side-button week-side-primary" data-autocomplete-week>Autocompletar</button>
+            </div>
           </div>
-          <button class="tab ${state.view === "recipes" ? "active" : ""}" data-view="recipes">Recetas</button>
-        </nav>
+        ` : `
+          <nav class="tabs">
+            <button class="tab ${state.view === "week" ? "active" : ""}" data-view="week">Semana</button>
+            <button class="tab ${state.view === "recipes" ? "active" : ""}" data-view="recipes">Recetas</button>
+          </nav>
+        `}
       </header>
 
       <main class="content">
@@ -1109,6 +1121,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    updateHeaderHeight();
     scheduleWeekScroll();
     scheduleSelectorFocus();
     schedulePreferencesFocus();
@@ -1121,11 +1134,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return `
       <section class="card week-panel" id="week-panel">
-        <div class="week-header-bar">
-          <button class="primary week-autofill" data-autocomplete-week>Autocompletar semana</button>
-        </div>
         <p class="muted">Los platos ya se pueden tocar para abrir su ficha si estan vinculados a una receta.</p>
-        <div class="week-grid">
+        <div class="week-grid" id="week-days">
           ${orderedWeekDates.map(({ date, dateISO }) => {
             const dayPlan = weekPlan.days[dateISO] || createEmptyDayPlan();
             const isToday = dateISO === todayISO && isCurrentWeek(state.weekStartISO);
@@ -1241,6 +1251,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.key === "Escape" && state.activeModal) closeActiveModal();
   });
 
+  window.addEventListener("resize", updateHeaderHeight);
+  window.addEventListener("orientationchange", updateHeaderHeight);
   ensureWeekPlan(state.weekStartISO, DEFAULT_WEEK_TEMPLATE);
   refreshBuildHash();
   render();
