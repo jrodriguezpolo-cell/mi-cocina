@@ -66,6 +66,30 @@ body.modal-open{overflow:hidden}
   background:rgba(79,140,255,.18);
   border-color:rgba(79,140,255,.35);
 }
+.week-tab{
+  display:grid;
+  grid-template-columns:28px 1fr 28px;
+  gap:6px;
+  align-items:center;
+  padding:8px;
+}
+.week-nav-tab{
+  width:28px;
+  height:28px;
+  border-radius:9px;
+  font-size:12px;
+}
+.week-range-tab{
+  width:100%;
+  min-width:0;
+  padding:6px 8px;
+  border:0;
+  background:transparent;
+  color:var(--text);
+  font-size:12px;
+  font-weight:800;
+  text-align:center;
+}
 .content{padding:14px; max-width:980px; margin:0 auto}
 .card{
   background:rgba(17,26,46,.9);
@@ -112,7 +136,14 @@ body.modal-open{overflow:hidden}
 }
 .week-autofill{
   width:100%;
-  margin-top:10px;
+}
+.week-actions{
+  position:sticky;
+  top:100px;
+  z-index:9;
+  margin:-2px 0 10px;
+  padding-bottom:8px;
+  background:linear-gradient(180deg,rgba(11,18,32,.98) 0%, rgba(11,18,32,.84) 74%, rgba(11,18,32,0) 100%);
 }
 .week-grid{
   margin-top:12px;
@@ -466,6 +497,9 @@ body.modal-open{overflow:hidden}
   min-width:0;
   font-size:14px;
   font-weight:800;
+}
+.prefs-recipe-title-muted{
+  color:var(--muted);
 }
 .prefs-toggle-row{
   display:flex;

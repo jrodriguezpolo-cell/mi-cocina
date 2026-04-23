@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const state = {
-    buildHash: "8825dbc",
+    buildHash: "cb1dd5f",
     view: "week",
     weekStartISO: getCurrentWeekStartISO(),
     expandedRecipeId: null,
@@ -82,6 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
         allowLunch: true,
         allowDinner: true,
         isWildcard: false,
+        isActive: true,
         timeMin: 90,
         ingredients: [
           { qty: 500, unit: "g", name: "Carne picada" },
@@ -97,6 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
         allowLunch: true,
         allowDinner: true,
         isWildcard: false,
+        isActive: true,
         timeMin: 15,
         ingredients: [
           { qty: 1, unit: "kg", name: "Tomate" },
@@ -104,12 +106,180 @@ document.addEventListener("DOMContentLoaded", () => {
           { name: "Ajo" }
         ],
         steps: ["Triturar todos los ingredientes", "Enfriar antes de servir"]
+      },
+      {
+        id: "len",
+        title: "Lentejas",
+        category: "Legumbre",
+        allowLunch: true,
+        allowDinner: false,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 55,
+        ingredients: [{ name: "Lentejas" }, { name: "Zanahoria" }, { name: "Patata" }],
+        steps: ["Cocer las lentejas", "Añadir verduras", "Reposar antes de servir"]
+      },
+      {
+        id: "gar",
+        title: "Garbanzos guisados",
+        category: "Legumbre",
+        allowLunch: true,
+        allowDinner: false,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 60,
+        ingredients: [{ name: "Garbanzos" }, { name: "Tomate" }, { name: "Pimiento" }],
+        steps: ["Preparar sofrito", "Cocer garbanzos", "Dejar espesar"]
+      },
+      {
+        id: "ata",
+        title: "Ensalada con atun",
+        category: "Pescado",
+        allowLunch: false,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 12,
+        ingredients: [{ name: "Lechuga" }, { name: "Atun" }, { name: "Tomate" }],
+        steps: ["Cortar verduras", "Añadir atun", "Aliñar al gusto"]
+      },
+      {
+        id: "sal",
+        title: "Salmon a la plancha",
+        category: "Pescado",
+        allowLunch: false,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 20,
+        ingredients: [{ name: "Salmon" }, { name: "Limon" }, { name: "Especias" }],
+        steps: ["Sazonar salmon", "Marcar a la plancha", "Servir con limon"]
+      },
+      {
+        id: "pol",
+        title: "Pollo al horno",
+        category: "Carne",
+        allowLunch: true,
+        allowDinner: false,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 70,
+        ingredients: [{ name: "Pollo" }, { name: "Patata" }, { name: "Ajo" }],
+        steps: ["Preparar bandeja", "Hornear", "Reposar unos minutos"]
+      },
+      {
+        id: "ver",
+        title: "Verduras salteadas",
+        category: "Verdura",
+        allowLunch: false,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 18,
+        ingredients: [{ name: "Calabacin" }, { name: "Pimiento" }, { name: "Cebolla" }],
+        steps: ["Cortar verduras", "Saltear", "Ajustar sal"]
+      },
+      {
+        id: "pas",
+        title: "Pasta con tomate",
+        category: "Otro",
+        allowLunch: true,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 25,
+        ingredients: [{ name: "Pasta" }, { name: "Tomate" }, { name: "Queso" }],
+        steps: ["Cocer pasta", "Preparar salsa", "Mezclar y servir"]
+      },
+      {
+        id: "arr",
+        title: "Arroz a la cubana",
+        category: "Otro",
+        allowLunch: true,
+        allowDinner: false,
+        isWildcard: true,
+        isActive: true,
+        timeMin: 30,
+        ingredients: [{ name: "Arroz" }, { name: "Tomate" }, { name: "Huevo" }],
+        steps: ["Cocer arroz", "Freir huevo", "Servir con tomate"]
+      },
+      {
+        id: "tor",
+        title: "Tortilla francesa",
+        category: "Otro",
+        allowLunch: false,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 10,
+        ingredients: [{ name: "Huevo" }, { name: "Sal" }],
+        steps: ["Batir huevos", "Cuajar en sarten"]
+      },
+      {
+        id: "mer",
+        title: "Merluza al horno",
+        category: "Pescado",
+        allowLunch: true,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 35,
+        ingredients: [{ name: "Merluza" }, { name: "Patata" }, { name: "Ajo" }],
+        steps: ["Preparar fuente", "Hornear merluza", "Servir"]
+      },
+      {
+        id: "ens",
+        title: "Ensalada templada",
+        category: "Verdura",
+        allowLunch: false,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 15,
+        ingredients: [{ name: "Brotes" }, { name: "Setas" }, { name: "Queso" }],
+        steps: ["Saltear setas", "Montar ensalada", "Aliñar"]
+      },
+      {
+        id: "cre",
+        title: "Crema de calabacin",
+        category: "Verdura",
+        allowLunch: true,
+        allowDinner: true,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 28,
+        ingredients: [{ name: "Calabacin" }, { name: "Patata" }, { name: "Cebolla" }],
+        steps: ["Cocer verduras", "Triturar", "Ajustar textura"]
+      },
+      {
+        id: "cer",
+        title: "Cerdo con pimientos",
+        category: "Carne",
+        allowLunch: true,
+        allowDinner: false,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 32,
+        ingredients: [{ name: "Cerdo" }, { name: "Pimientos" }, { name: "Cebolla" }],
+        steps: ["Marcar carne", "Añadir verduras", "Terminar coccion"]
+      },
+      {
+        id: "hum",
+        title: "Hummus con crudites",
+        category: "Legumbre",
+        allowLunch: true,
+        allowDinner: false,
+        isWildcard: false,
+        isActive: true,
+        timeMin: 14,
+        ingredients: [{ name: "Garbanzos" }, { name: "Tahini" }, { name: "Zanahoria" }],
+        steps: ["Triturar hummus", "Preparar crudites", "Servir frio"]
       }
     ]
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = "8825dbc";
+  const BUILD_FALLBACK = "cb1dd5f";
   let toastTimer = null;
 
   function ensureWeekPlan(weekStartISO, template) {
@@ -361,10 +531,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function getCandidateRecipes(slotType, preferredCategories, recentRecipeIds, usedThisWeek) {
-    const basePool = state.recipes.filter((recipe) => slotType === "lunch" ? recipe.allowLunch : recipe.allowDinner);
+    const basePool = state.recipes.filter((recipe) => {
+      if (!recipe.isActive) return false;
+      return slotType === "lunch" ? recipe.allowLunch : recipe.allowDinner;
+    });
     const byPreferred = (recipes) => recipes.filter((recipe) => preferredCategories.includes(recipe.category || "Otro"));
     const avoidRecent = (recipes) => recipes.filter((recipe) => recipe.isWildcard || !recentRecipeIds.has(recipe.id));
-    const avoidWeekRepeat = (recipes) => recipes.filter((recipe) => recipe.isWildcard || !usedThisWeek.has(recipe.id));
+    const avoidWeekRepeat = (recipes) => recipes.filter((recipe) => !usedThisWeek.has(recipe.id));
 
     const levels = [
       { degraded: false, recipes: avoidWeekRepeat(avoidRecent(byPreferred(basePool))) },
@@ -383,7 +556,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const weekPlan = getWeekPlan(state.weekStartISO);
     const recentRecipeIds = getRecentRecipeIds(state.weekStartISO);
     const categoryCounts = countWeekCategories(weekPlan);
-    const usedThisWeek = new Set(getWeekRecipeIds(state.weekStartISO).filter((recipeId) => !getRecipe(recipeId)?.isWildcard));
+    const usedThisWeek = new Set(getWeekRecipeIds(state.weekStartISO));
     const slots = [];
     const rulesUsed = [];
 
@@ -408,7 +581,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       weekPlan.days[slot.dateISO][slot.meal][slot.index] = recipe.id;
       categoryCounts[recipe.category || "Otro"] += 1;
-      if (!recipe.isWildcard) usedThisWeek.add(recipe.id);
+      usedThisWeek.add(recipe.id);
       if (candidateSet.degraded) rulesUsed.push(`${slot.dateISO}-${slot.meal}-${slot.index}`);
     });
 
@@ -566,10 +739,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${recipes.map((recipe) => `
                   <div class="prefs-recipe-item">
                     <div class="prefs-recipe-main">
-                      <div class="prefs-recipe-title">${recipe.title}</div>
+                      <div class="prefs-recipe-title ${recipe.isActive ? "" : "prefs-recipe-title-muted"}">${recipe.title}</div>
                       <span class="category-badge">${recipe.category || "Otro"}</span>
                     </div>
                     <div class="prefs-toggle-row">
+                      <label class="prefs-toggle">
+                        <input type="checkbox" data-pref-toggle="${recipe.id}:isActive" ${recipe.isActive ? "checked" : ""}>
+                        <span>${recipe.isActive ? "Activa" : "Silenciada"}</span>
+                      </label>
                       <label class="prefs-toggle">
                         <input type="checkbox" data-pref-toggle="${recipe.id}:allowLunch" ${recipe.allowLunch ? "checked" : ""}>
                         <span>Comida</span>
@@ -666,13 +843,19 @@ document.addEventListener("DOMContentLoaded", () => {
   function scheduleWeekScroll() {
     if (state.view !== "week" || !state.pendingWeekScroll) return;
     state.pendingWeekScroll = false;
-    if (!isCurrentWeek(state.weekStartISO)) return;
-
-    const todayISO = toISODate(startOfLocalDay(new Date()));
     requestAnimationFrame(() => {
-      const dayElement = document.getElementById(`day-${todayISO}`);
-      if (dayElement) {
-        dayElement.scrollIntoView({ block: "start", behavior: "smooth" });
+      if (isCurrentWeek(state.weekStartISO)) {
+        const todayISO = toISODate(startOfLocalDay(new Date()));
+        const dayElement = document.getElementById(`day-${todayISO}`);
+        if (dayElement) {
+          dayElement.scrollIntoView({ block: "start", behavior: "smooth" });
+        }
+        return;
+      }
+
+      const weekPanel = document.getElementById("week-panel");
+      if (weekPanel) {
+        weekPanel.scrollIntoView({ block: "start", behavior: "smooth" });
       }
     });
   }
@@ -733,7 +916,11 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         </div>
         <nav class="tabs">
-          <button class="tab ${state.view === "week" ? "active" : ""}" data-view="week">Semana</button>
+          <div class="tab week-tab ${state.view === "week" ? "active" : ""}">
+            <button class="week-nav week-nav-tab" data-week-nav="prev" aria-label="Semana anterior">◀</button>
+            <button class="week-range week-range-tab" data-view="week">${formatWeekRange(state.weekStartISO)}</button>
+            <button class="week-nav week-nav-tab" data-week-nav="next" aria-label="Semana siguiente">▶</button>
+          </div>
           <button class="tab ${state.view === "recipes" ? "active" : ""}" data-view="recipes">Recetas</button>
         </nav>
       </header>
@@ -783,6 +970,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const direction = btn.getAttribute("data-week-nav") === "next" ? 7 : -7;
         const nextWeekStart = addDays(fromISODate(state.weekStartISO), direction);
         state.weekStartISO = toISODate(nextWeekStart);
+        state.view = "week";
         ensureWeekPlan(state.weekStartISO);
         state.pendingWeekScroll = true;
         render();
@@ -903,13 +1091,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const todayISO = toISODate(startOfLocalDay(new Date()));
 
     return `
-      <section class="card">
-        <div class="week-picker">
-          <button class="week-nav" data-week-nav="prev" aria-label="Semana anterior">◀</button>
-          <div class="week-range">${formatWeekRange(state.weekStartISO)}</div>
-          <button class="week-nav" data-week-nav="next" aria-label="Semana siguiente">▶</button>
+      <section class="card" id="week-panel">
+        <div class="week-actions">
+          <button class="primary week-autofill" data-autocomplete-week>Autocompletar semana</button>
         </div>
-        <button class="primary week-autofill" data-autocomplete-week>Autocompletar semana</button>
         <p class="muted">Los platos ya se pueden tocar para abrir su ficha si estan vinculados a una receta.</p>
         <div class="week-grid">
           ${orderedWeekDates.map(({ date, dateISO }) => {
