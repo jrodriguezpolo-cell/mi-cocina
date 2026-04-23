@@ -1,10 +1,49 @@
 document.addEventListener("DOMContentLoaded", () => {
   const state = {
-    buildHash: "cargando",
+    buildHash: "eb14443",
     view: "week",
     expandedRecipeId: null,
+    activeModal: null,
     activeRecipeId: null,
+    infoMessage: "",
     recipeChecks: {},
+    weekPlan: [
+      {
+        day: "Lunes",
+        lunch: [{ recipeId: "alb", title: "Albóndigas" }, { recipeId: "gaz", title: "Gazpacho" }],
+        dinner: [{ title: "Tortilla" }, { title: "Ensalada" }]
+      },
+      {
+        day: "Martes",
+        lunch: [{ recipeId: "gaz", title: "Gazpacho" }, { title: "Pescado" }],
+        dinner: [{ recipeId: "alb", title: "Albóndigas" }, { title: "Fruta" }]
+      },
+      {
+        day: "Miércoles",
+        lunch: [{ title: "Arroz" }, { title: "Verdura" }],
+        dinner: [{ recipeId: "gaz", title: "Gazpacho" }, { title: "Yogur" }]
+      },
+      {
+        day: "Jueves",
+        lunch: [{ recipeId: "alb", title: "Albóndigas" }, { title: "Patata" }],
+        dinner: [{ title: "Crema" }, { title: "Tostada" }]
+      },
+      {
+        day: "Viernes",
+        lunch: [{ recipeId: "gaz", title: "Gazpacho" }, { title: "Pollo" }],
+        dinner: [{ title: "Sopa" }, { title: "Queso" }]
+      },
+      {
+        day: "Sábado",
+        lunch: [{ recipeId: "alb", title: "Albóndigas" }, { title: "Ensalada" }],
+        dinner: [{ title: "Pizza" }, { title: "Helado" }]
+      },
+      {
+        day: "Domingo",
+        lunch: [{ title: "Paella" }, { title: "Gazpacho" }],
+        dinner: [{ title: "Caldo" }, { title: "Fruta" }]
+      }
+    ],
     recipes: [
       {
         id: "alb",
@@ -34,10 +73,16 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = "bb87948";
+  const BUILD_FALLBACK = "eb14443";
 
   function getRecipe(recipeId) {
     return state.recipes.find((recipe) => recipe.id === recipeId);
+  }
+
+  function findRecipeByTitle(title) {
+    if (!title) return null;
+    const normalized = title.trim().toLocaleLowerCase("es");
+    return state.recipes.find((recipe) => recipe.title.trim().toLocaleLowerCase("es") === normalized) || null;
   }
 
   function formatIngredient(ingredient) {
@@ -63,13 +108,55 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openRecipeModal(recipeId) {
     if (!getRecipe(recipeId)) return;
+    state.activeModal = "recipe";
     state.activeRecipeId = recipeId;
     render();
   }
 
-  function closeRecipeModal() {
-    state.activeRecipeId = null;
+  function openToolsModal() {
+    state.activeModal = "tools";
+    state.infoMessage = "";
     render();
+  }
+
+  function openInfoModal(message) {
+    state.activeModal = "info";
+    state.infoMessage = message;
+    render();
+  }
+
+  function closeActiveModal() {
+    state.activeModal = null;
+    state.activeRecipeId = null;
+    state.infoMessage = "";
+    render();
+  }
+
+  function reloadApp() {
+    try {
+      sessionStorage.clear();
+    } catch (error) {
+      // No pasa nada si sessionStorage no esta disponible.
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("v", String(Date.now()));
+    window.location.replace(url.toString());
+  }
+
+  function resolveRecipeId(entry) {
+    if (!entry) return null;
+    if (entry.recipeId && getRecipe(entry.recipeId)) return entry.recipeId;
+    const matchedRecipe = findRecipeByTitle(entry.title);
+    return matchedRecipe ? matchedRecipe.id : null;
+  }
+
+  function openWeekPlate(entry) {
+    const recipeId = resolveRecipeId(entry);
+    if (recipeId) {
+      openRecipeModal(recipeId);
+      return;
+    }
+    openInfoModal("No hay receta vinculada aun");
   }
 
   function toggleRecipeStep(recipeId, stepIndex) {
@@ -79,7 +166,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderRecipeModal() {
     const recipe = getRecipe(state.activeRecipeId);
-    if (!recipe) return "";
+    if (!recipe || state.activeModal !== "recipe") return "";
 
     const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
     const steps = Array.isArray(recipe.steps) ? recipe.steps : [];
@@ -135,6 +222,64 @@ document.addEventListener("DOMContentLoaded", () => {
     `;
   }
 
+  function renderToolsModal() {
+    if (state.activeModal !== "tools") return "";
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="tools-modal-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="tools-modal-title">Herramientas</h2>
+              <div class="modal-time">Atajos utiles para esta instalacion</div>
+            </div>
+          </div>
+
+          <div class="modal-body modal-body-compact">
+            <div class="tool-list">
+              <button class="tool-item" data-tool-action="refresh">
+                <span class="tool-title">Actualizar (recarga limpia)</span>
+                <span class="tool-subtitle">Recarga la app con una version nueva en la URL</span>
+              </button>
+              <button class="tool-item" data-tool-action="preferences">
+                <span class="tool-title">Preferencias</span>
+                <span class="tool-subtitle">Proximamente</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderInfoModal() {
+    if (state.activeModal !== "info") return "";
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="info-modal-title">Aviso</h2>
+            </div>
+          </div>
+
+          <div class="modal-body modal-body-compact">
+            <div class="modal-item">${state.infoMessage || "Proximamente"}</div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   function refreshBuildHash() {
     fetch("https://api.github.com/repos/jrodriguezpolo-cell/mi-cocina/commits/main", { cache: "no-store" })
       .then((response) => {
@@ -157,13 +302,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const root = $("#root");
     if (!root) return;
 
-    document.body.classList.toggle("modal-open", Boolean(state.activeRecipeId));
+    document.body.classList.toggle("modal-open", Boolean(state.activeModal));
 
     root.innerHTML = `
       <header class="topbar">
         <div class="topbar-head">
           <div class="title">Mi Cocina</div>
-          <div class="build-badge">Build: ${state.buildHash}</div>
+          <div class="topbar-tools">
+            <div class="build-badge">Build: ${state.buildHash}</div>
+            <button class="icon-button" data-open-tools aria-label="Herramientas">⚙️</button>
+          </div>
         </div>
         <nav class="tabs">
           <button class="tab ${state.view === "week" ? "active" : ""}" data-view="week">Semana</button>
@@ -176,6 +324,8 @@ document.addEventListener("DOMContentLoaded", () => {
       </main>
 
       ${renderRecipeModal()}
+      ${renderToolsModal()}
+      ${renderInfoModal()}
     `;
 
     root.querySelectorAll("[data-view]").forEach((btn) => {
@@ -200,6 +350,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    root.querySelectorAll("[data-open-tools]").forEach((btn) => {
+      btn.addEventListener("click", openToolsModal);
+    });
+
     root.querySelectorAll("[data-step-toggle]").forEach((input) => {
       input.addEventListener("change", () => {
         const [recipeId, stepIndex] = input.getAttribute("data-step-toggle").split(":");
@@ -207,29 +361,75 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    root.querySelectorAll("[data-week-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openWeekPlate({
+          recipeId: btn.getAttribute("data-recipe-id") || "",
+          title: btn.getAttribute("data-title") || ""
+        });
+      });
+    });
+
+    root.querySelectorAll("[data-tool-action]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const action = btn.getAttribute("data-tool-action");
+        if (action === "refresh") reloadApp();
+        if (action === "preferences") openInfoModal("Proximamente");
+      });
+    });
+
     root.querySelectorAll("[data-close-modal-button]").forEach((btn) => {
-      btn.addEventListener("click", closeRecipeModal);
+      btn.addEventListener("click", closeActiveModal);
     });
 
     root.querySelectorAll("[data-close-modal]").forEach((overlay) => {
       overlay.addEventListener("click", (event) => {
-        if (event.target === overlay) closeRecipeModal();
+        if (event.target === overlay) closeActiveModal();
       });
     });
   }
 
   function renderWeek() {
-    const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
     return `
       <section class="card">
         <h2>Semana (base)</h2>
-        <p class="muted">Ahora mismo es una maqueta. Luego metemos Comida/Cena con 2 platos + turno.</p>
+        <p class="muted">Los platos ya se pueden tocar para abrir su ficha si estan vinculados a una receta.</p>
         <div class="week-grid">
-          ${days.map(d => `
+          ${state.weekPlan.map((dayPlan) => `
             <div class="day">
-              <div class="day-title">${d}</div>
-              <div class="slot"><span>Comida</span><button class="mini">+ Plato</button></div>
-              <div class="slot"><span>Cena</span><button class="mini">+ Plato</button></div>
+              <div class="day-title">${dayPlan.day}</div>
+              <div class="slot slot-meal">
+                <span>Comida</span>
+                <div class="meal-plates">
+                  ${dayPlan.lunch.map((plate, index) => `
+                    <button
+                      class="meal-plate"
+                      data-week-recipe
+                      data-recipe-id="${plate.recipeId || ""}"
+                      data-title="${plate.title || ""}"
+                    >
+                      <span class="meal-plate-index">P${index + 1}</span>
+                      <span class="meal-plate-title">${plate.title || "Sin plato"}</span>
+                    </button>
+                  `).join("")}
+                </div>
+              </div>
+              <div class="slot slot-meal">
+                <span>Cena</span>
+                <div class="meal-plates">
+                  ${dayPlan.dinner.map((plate, index) => `
+                    <button
+                      class="meal-plate"
+                      data-week-recipe
+                      data-recipe-id="${plate.recipeId || ""}"
+                      data-title="${plate.title || ""}"
+                    >
+                      <span class="meal-plate-index">P${index + 1}</span>
+                      <span class="meal-plate-title">${plate.title || "Sin plato"}</span>
+                    </button>
+                  `).join("")}
+                </div>
+              </div>
               <div class="slot"><span>Turno</span>
                 <select class="select">
                   <option>Mañana</option><option>Tarde</option><option>Dobla</option><option>Guardia</option><option>Libre</option>
@@ -278,7 +478,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && state.activeRecipeId) closeRecipeModal();
+    if (event.key === "Escape" && state.activeModal) closeActiveModal();
   });
 
   refreshBuildHash();
