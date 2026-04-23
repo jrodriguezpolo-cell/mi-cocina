@@ -1,0 +1,102 @@
+:root{
+  --bg:#0b1220;
+  --card:#111a2e;
+  --muted:#9aa7bd;
+  --text:#e7eefc;
+  --accent:#4f8cff;
+  --border:rgba(255,255,255,.08);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;
+  background:linear-gradient(180deg,#0b1220 0%, #0a1020 100%);
+  color:var(--text);
+}
+.topbar{
+  position:sticky; top:0; z-index:10;
+  padding:14px 14px 10px;
+  background:rgba(11,18,32,.92);
+  backdrop-filter: blur(10px);
+  border-bottom:1px solid var(--border);
+}
+.title{font-weight:700;font-size:18px;margin-bottom:10px}
+.tabs{display:flex; gap:10px}
+.tab{
+  flex:1;
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text);
+  font-weight:600;
+}
+.tab.active{
+  background:rgba(79,140,255,.18);
+  border-color:rgba(79,140,255,.35);
+}
+.content{padding:14px; max-width:980px; margin:0 auto}
+.card{
+  background:rgba(17,26,46,.9);
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);
+}
+.row{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.muted{color:var(--muted); font-size:13px; line-height:1.35}
+.primary{
+  padding:10px 12px;
+  border-radius:12px;
+  border:1px solid rgba(79,140,255,.45);
+  background:rgba(79,140,255,.18);
+  color:var(--text);
+  font-weight:700;
+}
+.week-grid{
+  margin-top:12px;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:12px;
+}
+.day{
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:12px;
+  background:rgba(255,255,255,.03);
+}
+.day-title{font-weight:800;margin-bottom:10px}
+.slot{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 10px;
+  border-radius:12px;
+  border:1px solid var(--border);
+  margin-top:8px;
+  background:rgba(0,0,0,.12);
+}
+.mini{
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--text);
+  font-weight:700;
+}
+.select{
+  padding:8px 10px;
+  border-radius:10px;
+  border:1px solid var(--border);
+  background:rgba(0,0,0,.22);
+  color:var(--text);
+}
+.list{margin-top:12px; display:flex; flex-direction:column; gap:10px}
+.recipe{
+  text-align:left;
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:12px;
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+}
+.recipe-title{font-weight:800}
+.recipe-meta{color:var(--muted); font-size:12px; margin-top:4px}
