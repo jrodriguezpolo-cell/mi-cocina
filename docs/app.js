@@ -16,6 +16,218 @@ document.addEventListener("DOMContentLoaded", () => {
     { lunch: ["alb", null], dinner: [null, null], workStatus: "Libre" },
     { lunch: [null, null], dinner: [null, null], workStatus: "Libre" }
   ];
+  const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
+  const MINI_CARD_PREVIEW_LIMIT = 8;
+  const DEFAULT_RECIPES = [
+    {
+      id: "alb",
+      title: "Albóndigas",
+      category: "Carne",
+      allowLunch: true,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 90,
+      ingredients: [
+        { qty: 500, unit: "g", name: "Carne picada" },
+        { qty: 1, unit: "ud", name: "Huevo" },
+        { name: "Pan rallado" }
+      ],
+      steps: ["Mezclar ingredientes", "Formar albóndigas", "Cocinar hasta que queden hechas"]
+    },
+    {
+      id: "gaz",
+      title: "Gazpacho",
+      category: "Verdura",
+      allowLunch: true,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 15,
+      ingredients: [
+        { qty: 1, unit: "kg", name: "Tomate" },
+        { qty: 1, unit: "ud", name: "Pepino" },
+        { name: "Ajo" }
+      ],
+      steps: ["Triturar todos los ingredientes", "Enfriar antes de servir"]
+    },
+    {
+      id: "len",
+      title: "Lentejas",
+      category: "Legumbre",
+      allowLunch: true,
+      allowDinner: false,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 55,
+      ingredients: [{ name: "Lentejas" }, { name: "Zanahoria" }, { name: "Patata" }],
+      steps: ["Cocer las lentejas", "Añadir verduras", "Reposar antes de servir"]
+    },
+    {
+      id: "gar",
+      title: "Garbanzos guisados",
+      category: "Legumbre",
+      allowLunch: true,
+      allowDinner: false,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 60,
+      ingredients: [{ name: "Garbanzos" }, { name: "Tomate" }, { name: "Pimiento" }],
+      steps: ["Preparar sofrito", "Cocer garbanzos", "Dejar espesar"]
+    },
+    {
+      id: "ata",
+      title: "Ensalada con atun",
+      category: "Pescado",
+      allowLunch: false,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 12,
+      ingredients: [{ name: "Lechuga" }, { name: "Atun" }, { name: "Tomate" }],
+      steps: ["Cortar verduras", "Añadir atun", "Aliñar al gusto"]
+    },
+    {
+      id: "sal",
+      title: "Salmon a la plancha",
+      category: "Pescado",
+      allowLunch: false,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 20,
+      ingredients: [{ name: "Salmon" }, { name: "Limon" }, { name: "Especias" }],
+      steps: ["Sazonar salmon", "Marcar a la plancha", "Servir con limon"]
+    },
+    {
+      id: "pol",
+      title: "Pollo al horno",
+      category: "Carne",
+      allowLunch: true,
+      allowDinner: false,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 70,
+      ingredients: [{ name: "Pollo" }, { name: "Patata" }, { name: "Ajo" }],
+      steps: ["Preparar bandeja", "Hornear", "Reposar unos minutos"]
+    },
+    {
+      id: "ver",
+      title: "Verduras salteadas",
+      category: "Verdura",
+      allowLunch: false,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 18,
+      ingredients: [{ name: "Calabacin" }, { name: "Pimiento" }, { name: "Cebolla" }],
+      steps: ["Cortar verduras", "Saltear", "Ajustar sal"]
+    },
+    {
+      id: "pas",
+      title: "Pasta con tomate",
+      category: "Otro",
+      allowLunch: true,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 25,
+      ingredients: [{ name: "Pasta" }, { name: "Tomate" }, { name: "Queso" }],
+      steps: ["Cocer pasta", "Preparar salsa", "Mezclar y servir"]
+    },
+    {
+      id: "arr",
+      title: "Arroz a la cubana",
+      category: "Otro",
+      allowLunch: true,
+      allowDinner: false,
+      isWildcard: true,
+      isActive: true,
+      timeMin: 30,
+      ingredients: [{ name: "Arroz" }, { name: "Tomate" }, { name: "Huevo" }],
+      steps: ["Cocer arroz", "Freir huevo", "Servir con tomate"]
+    },
+    {
+      id: "tor",
+      title: "Tortilla francesa",
+      category: "Otro",
+      allowLunch: false,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 10,
+      ingredients: [{ name: "Huevo" }, { name: "Sal" }],
+      steps: ["Batir huevos", "Cuajar en sarten"]
+    },
+    {
+      id: "mer",
+      title: "Merluza al horno",
+      category: "Pescado",
+      allowLunch: true,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 35,
+      ingredients: [{ name: "Merluza" }, { name: "Patata" }, { name: "Ajo" }],
+      steps: [
+        { text: "Precalentar el horno", tempC: 200, minutes: 10, note: "Calor arriba y abajo" },
+        { text: "Hornear la merluza", tempC: 200, minutes: 18, note: "Dar la vuelta a mitad si el corte es grueso" },
+        { text: "Reposo", minutes: 3 }
+      ]
+    },
+    {
+      id: "ens",
+      title: "Ensalada templada",
+      category: "Verdura",
+      allowLunch: false,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 15,
+      ingredients: [{ name: "Brotes" }, { name: "Setas" }, { name: "Queso" }],
+      steps: ["Saltear setas", "Montar ensalada", "Aliñar"]
+    },
+    {
+      id: "cre",
+      title: "Crema de calabacin",
+      category: "Verdura",
+      allowLunch: true,
+      allowDinner: true,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 28,
+      ingredients: [{ name: "Calabacin" }, { name: "Patata" }, { name: "Cebolla" }],
+      steps: [
+        { text: "Cocer verduras", minutes: 18, heat: "medio" },
+        { text: "Triturar", minutes: 4, note: "Anadir agua si queda muy espesa" },
+        { text: "Ajustar textura", minutes: 2 }
+      ]
+    },
+    {
+      id: "cer",
+      title: "Cerdo con pimientos",
+      category: "Carne",
+      allowLunch: true,
+      allowDinner: false,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 32,
+      ingredients: [{ name: "Cerdo" }, { name: "Pimientos" }, { name: "Cebolla" }],
+      steps: ["Marcar carne", "Añadir verduras", "Terminar coccion"]
+    },
+    {
+      id: "hum",
+      title: "Hummus con crudites",
+      category: "Legumbre",
+      allowLunch: true,
+      allowDinner: false,
+      isWildcard: false,
+      isActive: true,
+      timeMin: 14,
+      ingredients: [{ name: "Garbanzos" }, { name: "Tahini" }, { name: "Zanahoria" }],
+      steps: ["Triturar hummus", "Preparar crudites", "Servir frio"]
+    }
+  ];
 
   function startOfLocalDay(date) {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -58,11 +270,135 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  function normalizeRecipeId(id, index) {
+    if (id || id === 0) return String(id);
+    return `recipe-${Date.now()}-${index}`;
+  }
+
+  function normalizeStep(step) {
+    if (typeof step === "string") return { text: step };
+    return {
+      text: step?.text || "",
+      minutes: step?.minutes,
+      tempC: step?.tempC,
+      heat: step?.heat,
+      note: step?.note || ""
+    };
+  }
+
+  function normalizeRecipe(recipe, index) {
+    return {
+      id: normalizeRecipeId(recipe?.id, index),
+      title: String(recipe?.title || "").trim(),
+      category: CATEGORY_OPTIONS.includes(recipe?.category) ? recipe.category : "Otro",
+      allowLunch: recipe?.allowLunch !== false,
+      allowDinner: recipe?.allowDinner !== false,
+      isWildcard: Boolean(recipe?.isWildcard),
+      isActive: recipe?.isActive !== false,
+      timeMin: Number.isFinite(Number(recipe?.timeMin)) ? Math.max(0, Number(recipe.timeMin)) : 0,
+      ingredients: Array.isArray(recipe?.ingredients)
+        ? recipe.ingredients.filter((ingredient) => Boolean(formatIngredient(ingredient).trim()))
+        : [],
+      steps: Array.isArray(recipe?.steps)
+        ? recipe.steps.map(normalizeStep).filter((stepEntry) => stepEntry.text.trim())
+        : []
+    };
+  }
+
+  function normalizeRecipes(recipes) {
+    return Array.isArray(recipes) ? recipes.map((recipe, index) => normalizeRecipe(recipe, index)) : [];
+  }
+
+  function createRecipeDraft(recipe) {
+    const source = recipe || {};
+    const ingredients = Array.isArray(source.ingredients)
+      ? source.ingredients.map((ingredient) => formatIngredient(ingredient)).filter(Boolean).join("\n")
+      : "";
+    const steps = Array.isArray(source.steps)
+      ? source.steps.map((step) => normalizeStep(step).text.trim()).filter(Boolean).join("\n")
+      : "";
+
+    return {
+      id: source.id ? String(source.id) : "",
+      title: source.title || "",
+      category: CATEGORY_OPTIONS.includes(source.category) ? source.category : "Otro",
+      timeMin: source.timeMin || source.timeMin === 0 ? String(source.timeMin) : "",
+      ingredients,
+      steps,
+      allowLunch: source.allowLunch !== false,
+      allowDinner: source.allowDinner !== false,
+      isWildcard: Boolean(source.isWildcard),
+      isActive: source.isActive !== false
+    };
+  }
+
+  function buildRecipeFromDraft(draft) {
+    const title = String(draft.title || "").trim();
+    const timeValue = Number(draft.timeMin);
+
+    return normalizeRecipe({
+      id: draft.id || `recipe-${Date.now()}`,
+      title,
+      category: CATEGORY_OPTIONS.includes(draft.category) ? draft.category : "Otro",
+      timeMin: Number.isFinite(timeValue) ? timeValue : 0,
+      ingredients: String(draft.ingredients || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+      steps: String(draft.steps || "")
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+      allowLunch: Boolean(draft.allowLunch),
+      allowDinner: Boolean(draft.allowDinner),
+      isWildcard: Boolean(draft.isWildcard),
+      isActive: Boolean(draft.isActive)
+    }, 0);
+  }
+
+  function loadStoredRecipes() {
+    try {
+      const raw = localStorage.getItem(RECIPES_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      const normalized = normalizeRecipes(parsed);
+      return normalized.length ? normalized : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function formatIngredient(ingredient) {
+    if (!ingredient) return "";
+    if (typeof ingredient === "string") return ingredient;
+
+    const parts = [];
+    const qty = ingredient.qty ?? ingredient.quantity;
+    const unit = ingredient.unit;
+    const name = ingredient.name || ingredient.title || "";
+
+    if (qty || qty === 0) parts.push(String(qty));
+    if (unit) parts.push(unit);
+
+    if (parts.length && name) return `${parts.join(" ")} · ${name}`;
+    return name || parts.join(" ");
+  }
+
+  function escapeHTML(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("\"", "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
   const state = {
     buildHash: "53d7cd7",
     view: "week",
     weekStartISO: getCurrentWeekStartISO(),
     expandedRecipeId: null,
+    expandedIngredientsAll: false,
     activeModal: null,
     activeRecipeId: null,
     infoMessage: "",
@@ -74,221 +410,24 @@ document.addEventListener("DOMContentLoaded", () => {
     plans: {},
     prefs: { ...DEFAULT_PREFS, quotas: { ...DEFAULT_PREFS.quotas } },
     toastMessage: "",
-    recipes: [
-      {
-        id: "alb",
-        title: "Albóndigas",
-        category: "Carne",
-        allowLunch: true,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 90,
-        ingredients: [
-          { qty: 500, unit: "g", name: "Carne picada" },
-          { qty: 1, unit: "ud", name: "Huevo" },
-          { name: "Pan rallado" }
-        ],
-        steps: ["Mezclar ingredientes", "Formar albóndigas", "Cocinar hasta que queden hechas"]
-      },
-      {
-        id: "gaz",
-        title: "Gazpacho",
-        category: "Verdura",
-        allowLunch: true,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 15,
-        ingredients: [
-          { qty: 1, unit: "kg", name: "Tomate" },
-          { qty: 1, unit: "ud", name: "Pepino" },
-          { name: "Ajo" }
-        ],
-        steps: ["Triturar todos los ingredientes", "Enfriar antes de servir"]
-      },
-      {
-        id: "len",
-        title: "Lentejas",
-        category: "Legumbre",
-        allowLunch: true,
-        allowDinner: false,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 55,
-        ingredients: [{ name: "Lentejas" }, { name: "Zanahoria" }, { name: "Patata" }],
-        steps: ["Cocer las lentejas", "Añadir verduras", "Reposar antes de servir"]
-      },
-      {
-        id: "gar",
-        title: "Garbanzos guisados",
-        category: "Legumbre",
-        allowLunch: true,
-        allowDinner: false,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 60,
-        ingredients: [{ name: "Garbanzos" }, { name: "Tomate" }, { name: "Pimiento" }],
-        steps: ["Preparar sofrito", "Cocer garbanzos", "Dejar espesar"]
-      },
-      {
-        id: "ata",
-        title: "Ensalada con atun",
-        category: "Pescado",
-        allowLunch: false,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 12,
-        ingredients: [{ name: "Lechuga" }, { name: "Atun" }, { name: "Tomate" }],
-        steps: ["Cortar verduras", "Añadir atun", "Aliñar al gusto"]
-      },
-      {
-        id: "sal",
-        title: "Salmon a la plancha",
-        category: "Pescado",
-        allowLunch: false,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 20,
-        ingredients: [{ name: "Salmon" }, { name: "Limon" }, { name: "Especias" }],
-        steps: ["Sazonar salmon", "Marcar a la plancha", "Servir con limon"]
-      },
-      {
-        id: "pol",
-        title: "Pollo al horno",
-        category: "Carne",
-        allowLunch: true,
-        allowDinner: false,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 70,
-        ingredients: [{ name: "Pollo" }, { name: "Patata" }, { name: "Ajo" }],
-        steps: ["Preparar bandeja", "Hornear", "Reposar unos minutos"]
-      },
-      {
-        id: "ver",
-        title: "Verduras salteadas",
-        category: "Verdura",
-        allowLunch: false,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 18,
-        ingredients: [{ name: "Calabacin" }, { name: "Pimiento" }, { name: "Cebolla" }],
-        steps: ["Cortar verduras", "Saltear", "Ajustar sal"]
-      },
-      {
-        id: "pas",
-        title: "Pasta con tomate",
-        category: "Otro",
-        allowLunch: true,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 25,
-        ingredients: [{ name: "Pasta" }, { name: "Tomate" }, { name: "Queso" }],
-        steps: ["Cocer pasta", "Preparar salsa", "Mezclar y servir"]
-      },
-      {
-        id: "arr",
-        title: "Arroz a la cubana",
-        category: "Otro",
-        allowLunch: true,
-        allowDinner: false,
-        isWildcard: true,
-        isActive: true,
-        timeMin: 30,
-        ingredients: [{ name: "Arroz" }, { name: "Tomate" }, { name: "Huevo" }],
-        steps: ["Cocer arroz", "Freir huevo", "Servir con tomate"]
-      },
-      {
-        id: "tor",
-        title: "Tortilla francesa",
-        category: "Otro",
-        allowLunch: false,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 10,
-        ingredients: [{ name: "Huevo" }, { name: "Sal" }],
-        steps: ["Batir huevos", "Cuajar en sarten"]
-      },
-      {
-        id: "mer",
-        title: "Merluza al horno",
-        category: "Pescado",
-        allowLunch: true,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 35,
-        ingredients: [{ name: "Merluza" }, { name: "Patata" }, { name: "Ajo" }],
-        steps: [
-          { text: "Precalentar el horno", tempC: 200, minutes: 10, note: "Calor arriba y abajo" },
-          { text: "Hornear la merluza", tempC: 200, minutes: 18, note: "Dar la vuelta a mitad si el corte es grueso" },
-          { text: "Reposo", minutes: 3 }
-        ]
-      },
-      {
-        id: "ens",
-        title: "Ensalada templada",
-        category: "Verdura",
-        allowLunch: false,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 15,
-        ingredients: [{ name: "Brotes" }, { name: "Setas" }, { name: "Queso" }],
-        steps: ["Saltear setas", "Montar ensalada", "Aliñar"]
-      },
-      {
-        id: "cre",
-        title: "Crema de calabacin",
-        category: "Verdura",
-        allowLunch: true,
-        allowDinner: true,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 28,
-        ingredients: [{ name: "Calabacin" }, { name: "Patata" }, { name: "Cebolla" }],
-        steps: [
-          { text: "Cocer verduras", minutes: 18, heat: "medio" },
-          { text: "Triturar", minutes: 4, note: "Anadir agua si queda muy espesa" },
-          { text: "Ajustar textura", minutes: 2 }
-        ]
-      },
-      {
-        id: "cer",
-        title: "Cerdo con pimientos",
-        category: "Carne",
-        allowLunch: true,
-        allowDinner: false,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 32,
-        ingredients: [{ name: "Cerdo" }, { name: "Pimientos" }, { name: "Cebolla" }],
-        steps: ["Marcar carne", "Añadir verduras", "Terminar coccion"]
-      },
-      {
-        id: "hum",
-        title: "Hummus con crudites",
-        category: "Legumbre",
-        allowLunch: true,
-        allowDinner: false,
-        isWildcard: false,
-        isActive: true,
-        timeMin: 14,
-        ingredients: [{ name: "Garbanzos" }, { name: "Tahini" }, { name: "Zanahoria" }],
-        steps: ["Triturar hummus", "Preparar crudites", "Servir frio"]
-      }
-    ]
+    recipeEditor: {
+      mode: "create",
+      draft: createRecipeDraft()
+    },
+    recipes: loadStoredRecipes() || normalizeRecipes(DEFAULT_RECIPES)
   };
 
   const $ = (sel) => document.querySelector(sel);
   const BUILD_FALLBACK = "53d7cd7";
   let toastTimer = null;
+
+  function saveRecipes() {
+    try {
+      localStorage.setItem(RECIPES_STORAGE_KEY, JSON.stringify(state.recipes));
+    } catch (error) {
+      showToast("No se pudo guardar en este navegador");
+    }
+  }
 
   function ensureWeekPlan(weekStartISO, template) {
     if (state.plans[weekStartISO]) return state.plans[weekStartISO];
@@ -377,35 +516,19 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function formatIngredient(ingredient) {
-    if (!ingredient) return "";
-    if (typeof ingredient === "string") return ingredient;
-
-    const parts = [];
-    const qty = ingredient.qty ?? ingredient.quantity;
-    const unit = ingredient.unit;
-    const name = ingredient.name || ingredient.title || "";
-
-    if (qty) parts.push(String(qty));
-    if (unit) parts.push(unit);
-
-    if (parts.length && name) return `${parts.join(" ")} · ${name}`;
-    return name || parts.join(" ");
-  }
-
   function summarizeIngredients(ingredients) {
     if (!Array.isArray(ingredients) || !ingredients.length) return "Pendiente de completar";
     return ingredients.map((ingredient) => formatIngredient(ingredient)).filter(Boolean).join(", ");
   }
 
-  function normalizeStep(step) {
-    if (typeof step === "string") return { text: step };
+  function getIngredientLines(recipe, showAll) {
+    const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients.map(formatIngredient).filter(Boolean) : [];
+    if (showAll || ingredients.length <= MINI_CARD_PREVIEW_LIMIT) {
+      return { items: ingredients, hasMore: false };
+    }
     return {
-      text: step?.text || "",
-      minutes: step?.minutes,
-      tempC: step?.tempC,
-      heat: step?.heat,
-      note: step?.note || ""
+      items: ingredients.slice(0, MINI_CARD_PREVIEW_LIMIT),
+      hasMore: true
     };
   }
 
@@ -414,6 +537,17 @@ document.addEventListener("DOMContentLoaded", () => {
     state.activeModal = "recipe";
     state.activeRecipeId = recipeId;
     state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
+    render();
+  }
+
+  function openRecipeEditor(mode, recipeId) {
+    const recipe = recipeId ? getRecipe(recipeId) : null;
+    state.activeModal = "recipe-editor";
+    state.activeRecipeId = recipe ? recipe.id : null;
+    state.recipeEditor = {
+      mode,
+      draft: createRecipeDraft(recipe)
+    };
     render();
   }
 
@@ -450,6 +584,10 @@ document.addEventListener("DOMContentLoaded", () => {
     state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
     state.recipeQuery = "";
     state.prefQuery = "";
+    state.recipeEditor = {
+      mode: "create",
+      draft: createRecipeDraft()
+    };
     render();
   }
 
@@ -479,6 +617,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const recipe = getRecipe(recipeId);
     if (!recipe) return;
     recipe[field] = checked;
+    saveRecipes();
     render();
   }
 
@@ -614,6 +753,42 @@ document.addEventListener("DOMContentLoaded", () => {
     state.recipeChecks[recipeId][stepIndex] = !state.recipeChecks[recipeId][stepIndex];
   }
 
+  function updateRecipeDraftField(field, value) {
+    state.recipeEditor.draft[field] = value;
+  }
+
+  function submitRecipeEditor() {
+    const recipeDraft = state.recipeEditor.draft;
+    const recipeTitle = recipeDraft.title.trim();
+
+    if (!recipeTitle) {
+      showToast("El titulo es obligatorio");
+      return;
+    }
+
+    const existingByTitle = findRecipeByTitle(recipeTitle);
+    if (existingByTitle && existingByTitle.id !== recipeDraft.id) {
+      showToast("Ya existe una receta con ese titulo");
+      return;
+    }
+
+    const recipeToSave = buildRecipeFromDraft(recipeDraft);
+    const existingIndex = state.recipes.findIndex((recipe) => recipe.id === recipeToSave.id);
+
+    if (existingIndex >= 0) {
+      state.recipes[existingIndex] = recipeToSave;
+    } else {
+      state.recipes.push(recipeToSave);
+    }
+
+    state.recipes.sort((left, right) => left.title.localeCompare(right.title, "es"));
+    state.expandedRecipeId = recipeToSave.id;
+    state.expandedIngredientsAll = false;
+    saveRecipes();
+    closeActiveModal();
+    showToast(existingIndex >= 0 ? "Receta actualizada" : "Receta creada");
+  }
+
   function renderRecipeModal() {
     const recipe = getRecipe(state.activeRecipeId);
     if (!recipe || state.activeModal !== "recipe") return "";
@@ -627,7 +802,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recipe-modal-title">
           <div class="modal-head">
             <div>
-              <h2 class="modal-title" id="recipe-modal-title">${recipe.title}</h2>
+              <h2 class="modal-title" id="recipe-modal-title">${escapeHTML(recipe.title)}</h2>
               <div class="modal-time">Tiempo total: ${recipe.timeMin || 0} min</div>
             </div>
             <span class="category-badge modal-category">${recipe.category || "Otro"}</span>
@@ -639,7 +814,7 @@ document.addEventListener("DOMContentLoaded", () => {
               ${ingredients.length ? `
                 <div class="modal-stack">
                   ${ingredients.map((ingredient) => `
-                    <div class="modal-item">${formatIngredient(ingredient)}</div>
+                    <div class="modal-item">${escapeHTML(formatIngredient(ingredient))}</div>
                   `).join("")}
                 </div>
               ` : `
@@ -654,8 +829,8 @@ document.addEventListener("DOMContentLoaded", () => {
                   ${steps.map((step, index) => `
                     <label class="check-item">
                       <input type="checkbox" data-step-toggle="${recipe.id}:${index}" ${checks[index] ? "checked" : ""}>
-                      <span class="check-copy">
-                        <span>${step.text}</span>
+                        <span class="check-copy">
+                        <span>${escapeHTML(step.text)}</span>
                         ${(step.minutes || step.tempC || step.heat) ? `
                           <span class="step-chips">
                             ${step.minutes ? `<span class="step-chip">⏱ ${step.minutes} min</span>` : ""}
@@ -663,7 +838,7 @@ document.addEventListener("DOMContentLoaded", () => {
                             ${step.heat ? `<span class="step-chip">🔥 ${step.heat}</span>` : ""}
                           </span>
                         ` : ""}
-                        ${step.note ? `<span class="step-note">${step.note}</span>` : ""}
+                        ${step.note ? `<span class="step-note">${escapeHTML(step.note)}</span>` : ""}
                       </span>
                     </label>
                   `).join("")}
@@ -676,6 +851,90 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <div class="modal-actions">
             <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRecipeEditorModal() {
+    if (state.activeModal !== "recipe-editor") return "";
+
+    const { draft, mode } = state.recipeEditor;
+    const heading = mode === "edit" ? "Editar receta" : "Nueva receta";
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card modal-card-editor" role="dialog" aria-modal="true" aria-labelledby="recipe-editor-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="recipe-editor-title">${heading}</h2>
+              <div class="modal-time">Rellena lo importante y guardamos en este iPhone con localStorage</div>
+            </div>
+          </div>
+
+          <div class="modal-body modal-body-editor">
+            <section class="modal-section editor-grid">
+              <label class="field">
+                <span class="field-label">Titulo</span>
+                <input class="field-input" type="text" value="${escapeHTML(draft.title)}" data-editor-field="title" placeholder="Ej. Merluza con verduras" required>
+              </label>
+
+              <label class="field">
+                <span class="field-label">Categoria</span>
+                <select class="field-input" data-editor-field="category">
+                  ${CATEGORY_OPTIONS.map((category) => `
+                    <option value="${category}" ${draft.category === category ? "selected" : ""}>${category}</option>
+                  `).join("")}
+                </select>
+              </label>
+
+              <label class="field">
+                <span class="field-label">Tiempo total (min)</span>
+                <input class="field-input" type="number" min="0" inputmode="numeric" value="${escapeHTML(draft.timeMin)}" data-editor-field="timeMin" placeholder="0">
+              </label>
+            </section>
+
+            <section class="modal-section">
+              <label class="field">
+                <span class="field-label">Ingredientes</span>
+                <textarea class="field-input field-textarea" rows="7" data-editor-field="ingredients" placeholder="1 linea por ingrediente">${escapeHTML(draft.ingredients)}</textarea>
+              </label>
+            </section>
+
+            <section class="modal-section">
+              <label class="field">
+                <span class="field-label">Pasos</span>
+                <textarea class="field-input field-textarea" rows="7" data-editor-field="steps" placeholder="1 linea por paso">${escapeHTML(draft.steps)}</textarea>
+              </label>
+            </section>
+
+            <section class="modal-section">
+              <h3 class="modal-section-title">Uso</h3>
+              <div class="editor-check-grid">
+                <label class="editor-check">
+                  <input type="checkbox" data-editor-check="allowLunch" ${draft.allowLunch ? "checked" : ""}>
+                  <span>Comida</span>
+                </label>
+                <label class="editor-check">
+                  <input type="checkbox" data-editor-check="allowDinner" ${draft.allowDinner ? "checked" : ""}>
+                  <span>Cena</span>
+                </label>
+                <label class="editor-check">
+                  <input type="checkbox" data-editor-check="isWildcard" ${draft.isWildcard ? "checked" : ""}>
+                  <span>Comodin</span>
+                </label>
+                <label class="editor-check">
+                  <input type="checkbox" data-editor-check="isActive" ${draft.isActive ? "checked" : ""}>
+                  <span>Activa en automenú</span>
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <div class="modal-actions modal-actions-editor">
+            <button class="primary editor-submit" data-save-recipe>${mode === "edit" ? "Guardar cambios" : "Guardar receta"}</button>
+            <button class="open-recipe editor-cancel" data-close-modal-button>Cancelar</button>
           </div>
         </div>
       </div>
@@ -768,7 +1027,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${recipes.map((recipe) => `
                   <div class="prefs-recipe-item">
                     <div class="prefs-recipe-main">
-                      <div class="prefs-recipe-title ${recipe.isActive ? "" : "prefs-recipe-title-muted"}">${recipe.title}</div>
+                      <div class="prefs-recipe-title ${recipe.isActive ? "" : "prefs-recipe-title-muted"}">${escapeHTML(recipe.title)}</div>
                       <span class="category-badge">${recipe.category || "Otro"}</span>
                     </div>
                     <div class="prefs-toggle-row">
@@ -851,7 +1110,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="selector-list">
               ${recipes.length ? recipes.map((recipe) => `
                 <button class="selector-item" data-assign-recipe="${recipe.id}">
-                  <span class="selector-item-title">${recipe.title}</span>
+                  <span class="selector-item-title">${escapeHTML(recipe.title)}</span>
                   <span class="selector-item-meta">${recipe.category || "Otro"} · ${recipe.timeMin || 0} min</span>
                 </button>
               `).join("") : `
@@ -904,6 +1163,17 @@ document.addEventListener("DOMContentLoaded", () => {
       input.focus();
       const queryLength = input.value.length;
       input.setSelectionRange(queryLength, queryLength);
+    });
+  }
+
+  function scheduleRecipeEditorFocus() {
+    if (state.activeModal !== "recipe-editor") return;
+    requestAnimationFrame(() => {
+      const input = document.querySelector("[data-editor-field=\"title\"]");
+      if (!input) return;
+      input.focus();
+      const titleLength = input.value.length;
+      input.setSelectionRange(titleLength, titleLength);
     });
   }
 
@@ -971,6 +1241,7 @@ document.addEventListener("DOMContentLoaded", () => {
       </main>
 
       ${renderRecipeModal()}
+      ${renderRecipeEditorModal()}
       ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
       ${renderPreferencesModal()}
@@ -984,6 +1255,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (nextView === "week" && state.view !== "week") state.pendingWeekScroll = true;
         state.view = nextView;
         state.expandedRecipeId = null;
+        state.expandedIngredientsAll = false;
         render();
       });
     });
@@ -991,7 +1263,9 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-recipe-toggle]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const recipeId = btn.getAttribute("data-recipe-toggle");
-        state.expandedRecipeId = state.expandedRecipeId === recipeId ? null : recipeId;
+        const isOpen = state.expandedRecipeId === recipeId;
+        state.expandedRecipeId = isOpen ? null : recipeId;
+        state.expandedIngredientsAll = false;
         render();
       });
     });
@@ -999,6 +1273,23 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-open-recipe]").forEach((btn) => {
       btn.addEventListener("click", () => {
         openRecipeModal(btn.getAttribute("data-open-recipe"));
+      });
+    });
+
+    root.querySelectorAll("[data-open-editor]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const recipeId = btn.getAttribute("data-open-editor");
+        openRecipeEditor(recipeId ? "edit" : "create", recipeId || "");
+      });
+    });
+
+    root.querySelectorAll("[data-expand-ingredients]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const recipeId = btn.getAttribute("data-expand-ingredients");
+        if (recipeId && recipeId === state.expandedRecipeId) {
+          state.expandedIngredientsAll = true;
+          render();
+        }
       });
     });
 
@@ -1111,6 +1402,24 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    root.querySelectorAll("[data-editor-field]").forEach((input) => {
+      const syncDraftField = () => {
+        updateRecipeDraftField(input.getAttribute("data-editor-field"), input.value);
+      };
+      input.addEventListener("input", syncDraftField);
+      input.addEventListener("change", syncDraftField);
+    });
+
+    root.querySelectorAll("[data-editor-check]").forEach((input) => {
+      input.addEventListener("change", () => {
+        updateRecipeDraftField(input.getAttribute("data-editor-check"), input.checked);
+      });
+    });
+
+    root.querySelectorAll("[data-save-recipe]").forEach((btn) => {
+      btn.addEventListener("click", submitRecipeEditor);
+    });
+
     root.querySelectorAll("[data-close-modal-button]").forEach((btn) => {
       btn.addEventListener("click", closeActiveModal);
     });
@@ -1125,6 +1434,7 @@ document.addEventListener("DOMContentLoaded", () => {
     scheduleWeekScroll();
     scheduleSelectorFocus();
     schedulePreferencesFocus();
+    scheduleRecipeEditorFocus();
   }
 
   function renderWeek() {
@@ -1162,7 +1472,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         data-index="${index}"
                       >
                         <span class="meal-plate-index">P${index + 1}</span>
-                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? plate.title : "+ Añadir"}</span>
+                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
                       </button>
                       ${plate.recipeId ? `
                         <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
@@ -1187,7 +1497,7 @@ document.addEventListener("DOMContentLoaded", () => {
                         data-index="${index}"
                       >
                         <span class="meal-plate-index">P${index + 1}</span>
-                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? plate.title : "+ Añadir"}</span>
+                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
                       </button>
                       ${plate.recipeId ? `
                         <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
@@ -1213,36 +1523,61 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderRecipes() {
-    const items = [...state.recipes].sort((a,b) => a.title.localeCompare(b.title, "es"));
+    const items = [...state.recipes].sort((a, b) => a.title.localeCompare(b.title, "es"));
+
     return `
       <section class="card">
-        <div class="row">
+        <div class="row row-wrap">
           <h2>Recetas</h2>
-          <button class="primary">+ Añadir</button>
+          <button class="primary" data-open-editor>+ Añadir</button>
         </div>
         <div class="list">
-          ${items.map(r => `
-            <div class="recipe-item">
-              <button class="recipe" data-recipe-toggle="${r.id}" aria-expanded="${state.expandedRecipeId === r.id}">
-                <div class="recipe-title">${r.title}</div>
-                <div class="recipe-meta">${r.timeMin} min · ${Array.isArray(r.ingredients) ? r.ingredients.length : 0} ingredientes</div>
-              </button>
-              ${state.expandedRecipeId === r.id ? `
-                <div class="recipe-details">
-                  <div class="recipe-details-main">
-                    <div class="recipe-summary">${summarizeIngredients(r.ingredients)}</div>
-                    <div class="recipe-total">Total: ${r.timeMin} min</div>
+          ${items.map((recipe) => {
+            const isExpanded = state.expandedRecipeId === recipe.id;
+            const ingredientLines = getIngredientLines(recipe, isExpanded && state.expandedIngredientsAll);
+            return `
+              <div class="recipe-item">
+                <button class="recipe" data-recipe-toggle="${recipe.id}" aria-expanded="${isExpanded}">
+                  <div class="recipe-title-row">
+                    <div class="recipe-title ${recipe.isActive ? "" : "recipe-title-muted"}">${escapeHTML(recipe.title)}</div>
+                    ${recipe.isActive ? "" : `<span class="recipe-quiet-badge">Silenciada</span>`}
                   </div>
-                  <div class="recipe-details-side">
-                    <span class="category-badge">${r.category || "Otro"}</span>
-                    <button class="open-recipe" data-open-recipe="${r.id}">Abrir ficha</button>
+                  <div class="recipe-meta">${recipe.timeMin || 0} min · ${Array.isArray(recipe.ingredients) ? recipe.ingredients.length : 0} ingredientes</div>
+                </button>
+                ${isExpanded ? `
+                  <div class="recipe-details">
+                    <div class="recipe-details-main">
+                      <div class="recipe-mini-head">
+                        <span class="category-badge">${recipe.category || "Otro"}</span>
+                        <div class="recipe-flag-row">
+                          ${recipe.allowLunch ? `<span class="recipe-flag">Comida</span>` : ""}
+                          ${recipe.allowDinner ? `<span class="recipe-flag">Cena</span>` : ""}
+                          ${recipe.isWildcard ? `<span class="recipe-flag">Comodin</span>` : ""}
+                        </div>
+                      </div>
+                      <div class="recipe-total">Total: ${recipe.timeMin || 0} min</div>
+                      <div class="recipe-mini-section">
+                        <div class="recipe-mini-label">Ingredientes</div>
+                        ${ingredientLines.items.length ? `
+                          <div class="recipe-ingredients-list">
+                            ${ingredientLines.items.map((item) => `<div class="recipe-ingredient-line">${escapeHTML(item)}</div>`).join("")}
+                          </div>
+                        ` : `
+                          <div class="recipe-summary">Pendiente de completar</div>
+                        `}
+                        ${ingredientLines.hasMore ? `<button class="recipe-link" data-expand-ingredients="${recipe.id}">Ver todos</button>` : ""}
+                      </div>
+                    </div>
+                    <div class="recipe-details-side">
+                      <button class="open-recipe" data-open-recipe="${recipe.id}">Abrir ficha</button>
+                      <button class="open-recipe open-recipe-secondary" data-open-editor="${recipe.id}">Editar</button>
+                    </div>
                   </div>
-                </div>
-              ` : ""}
-            </div>
-          `).join("")}
+                ` : ""}
+              </div>
+            `;
+          }).join("")}
         </div>
-        <p class="muted">Siguiente: mini-ficha y receta completa.</p>
       </section>
     `;
   }
@@ -1254,6 +1589,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", updateHeaderHeight);
   window.addEventListener("orientationchange", updateHeaderHeight);
   ensureWeekPlan(state.weekStartISO, DEFAULT_WEEK_TEMPLATE);
+  saveRecipes();
   refreshBuildHash();
   render();
 });
