@@ -1,7 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
   const WEEKDAY_SHORT = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
   const MONTH_SHORT = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const CATEGORY_OPTIONS = ["Legumbre", "Pescado", "Verdura", "Carne", "Otro"];
   const WORK_STATUS_OPTIONS = ["Mañana", "Tarde", "Dobla", "Guardia", "Libre"];
+  const DEFAULT_PREFS = {
+    repeatWindowWeeks: 2,
+    quotas: { Legumbre: 2, Pescado: 2, Verdura: 3, Carne: 2, Otro: 5 }
+  };
   const DEFAULT_WEEK_TEMPLATE = [
     { lunch: ["alb", "gaz"], dinner: [null, null], workStatus: "Mañana" },
     { lunch: ["gaz", null], dinner: ["alb", null], workStatus: "Tarde" },
@@ -54,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const state = {
-    buildHash: "8c3fe90",
+    buildHash: "8825dbc",
     view: "week",
     weekStartISO: getCurrentWeekStartISO(),
     expandedRecipeId: null,
@@ -63,14 +68,20 @@ document.addEventListener("DOMContentLoaded", () => {
     infoMessage: "",
     selectorOpen: { open: false, dateISO: "", meal: "lunch", index: 0 },
     recipeQuery: "",
+    prefQuery: "",
     pendingWeekScroll: true,
     recipeChecks: {},
     plans: {},
+    prefs: { ...DEFAULT_PREFS, quotas: { ...DEFAULT_PREFS.quotas } },
+    toastMessage: "",
     recipes: [
       {
         id: "alb",
         title: "Albóndigas",
         category: "Carne",
+        allowLunch: true,
+        allowDinner: true,
+        isWildcard: false,
         timeMin: 90,
         ingredients: [
           { qty: 500, unit: "g", name: "Carne picada" },
@@ -83,6 +94,9 @@ document.addEventListener("DOMContentLoaded", () => {
         id: "gaz",
         title: "Gazpacho",
         category: "Verdura",
+        allowLunch: true,
+        allowDinner: true,
+        isWildcard: false,
         timeMin: 15,
         ingredients: [
           { qty: 1, unit: "kg", name: "Tomate" },
@@ -95,7 +109,8 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = "8c3fe90";
+  const BUILD_FALLBACK = "8825dbc";
+  let toastTimer = null;
 
   function ensureWeekPlan(weekStartISO, template) {
     if (state.plans[weekStartISO]) return state.plans[weekStartISO];
@@ -162,6 +177,14 @@ document.addEventListener("DOMContentLoaded", () => {
     return state.recipes.find((recipe) => recipe.id === recipeId);
   }
 
+  function getRecipeCategory(recipeId) {
+    return getRecipe(recipeId)?.category || "Otro";
+  }
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
   function findRecipeByTitle(title) {
     if (!title) return null;
     const normalized = title.trim().toLocaleLowerCase("es");
@@ -211,6 +234,12 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
 
+  function openPreferencesModal() {
+    state.activeModal = "preferences";
+    state.prefQuery = "";
+    render();
+  }
+
   function openInfoModal(message) {
     state.activeModal = "info";
     state.infoMessage = message;
@@ -231,6 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
     state.infoMessage = "";
     state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
     state.recipeQuery = "";
+    state.prefQuery = "";
     render();
   }
 
@@ -254,6 +284,137 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function clearRecipeSlot(dateISO, meal, index) {
     assignRecipeToSlot(dateISO, meal, index, null);
+  }
+
+  function updateRecipePreference(recipeId, field, checked) {
+    const recipe = getRecipe(recipeId);
+    if (!recipe) return;
+    recipe[field] = checked;
+    render();
+  }
+
+  function updateRepeatWindow(delta) {
+    state.prefs.repeatWindowWeeks = clamp(state.prefs.repeatWindowWeeks + delta, 1, 4);
+    render();
+  }
+
+  function updateQuota(category, delta) {
+    if (!state.prefs.quotas[category] && state.prefs.quotas[category] !== 0) return;
+    state.prefs.quotas[category] = clamp(state.prefs.quotas[category] + delta, 0, 28);
+    render();
+  }
+
+  function showToast(message) {
+    if (toastTimer) clearTimeout(toastTimer);
+    state.toastMessage = message;
+    render();
+    toastTimer = setTimeout(() => {
+      state.toastMessage = "";
+      render();
+    }, 2200);
+  }
+
+  function getWeekRecipeIds(weekStartISO) {
+    const plan = state.plans[weekStartISO];
+    if (!plan) return [];
+
+    return Object.values(plan.days).flatMap((dayPlan) => [
+      ...(Array.isArray(dayPlan.lunch) ? dayPlan.lunch : []),
+      ...(Array.isArray(dayPlan.dinner) ? dayPlan.dinner : [])
+    ]).filter(Boolean);
+  }
+
+  function getRecentRecipeIds(weekStartISO) {
+    const recentRecipeIds = new Set();
+
+    for (let offset = 1; offset <= state.prefs.repeatWindowWeeks; offset += 1) {
+      const previousWeekISO = toISODate(addDays(fromISODate(weekStartISO), -7 * offset));
+      getWeekRecipeIds(previousWeekISO).forEach((recipeId) => {
+        const recipe = getRecipe(recipeId);
+        if (recipe && !recipe.isWildcard) recentRecipeIds.add(recipeId);
+      });
+    }
+
+    return recentRecipeIds;
+  }
+
+  function countWeekCategories(weekPlan) {
+    const counts = Object.fromEntries(CATEGORY_OPTIONS.map((category) => [category, 0]));
+
+    Object.values(weekPlan.days).forEach((dayPlan) => {
+      [...dayPlan.lunch, ...dayPlan.dinner].filter(Boolean).forEach((recipeId) => {
+        counts[getRecipeCategory(recipeId)] += 1;
+      });
+    });
+
+    return counts;
+  }
+
+  function pickRandom(items) {
+    if (!items.length) return null;
+    return items[Math.floor(Math.random() * items.length)];
+  }
+
+  function getPreferredCategories(categoryCounts) {
+    const underQuota = CATEGORY_OPTIONS.filter((category) => categoryCounts[category] < state.prefs.quotas[category]);
+    return underQuota.length ? underQuota : CATEGORY_OPTIONS;
+  }
+
+  function getCandidateRecipes(slotType, preferredCategories, recentRecipeIds, usedThisWeek) {
+    const basePool = state.recipes.filter((recipe) => slotType === "lunch" ? recipe.allowLunch : recipe.allowDinner);
+    const byPreferred = (recipes) => recipes.filter((recipe) => preferredCategories.includes(recipe.category || "Otro"));
+    const avoidRecent = (recipes) => recipes.filter((recipe) => recipe.isWildcard || !recentRecipeIds.has(recipe.id));
+    const avoidWeekRepeat = (recipes) => recipes.filter((recipe) => recipe.isWildcard || !usedThisWeek.has(recipe.id));
+
+    const levels = [
+      { degraded: false, recipes: avoidWeekRepeat(avoidRecent(byPreferred(basePool))) },
+      { degraded: true, recipes: avoidRecent(byPreferred(basePool)) },
+      { degraded: true, recipes: avoidWeekRepeat(byPreferred(basePool)) },
+      { degraded: true, recipes: byPreferred(basePool) },
+      { degraded: true, recipes: avoidWeekRepeat(avoidRecent(basePool)) },
+      { degraded: true, recipes: avoidRecent(basePool) },
+      { degraded: true, recipes: basePool }
+    ];
+
+    return levels.find((level) => level.recipes.length) || { degraded: true, recipes: [] };
+  }
+
+  function autocompleteWeek() {
+    const weekPlan = getWeekPlan(state.weekStartISO);
+    const recentRecipeIds = getRecentRecipeIds(state.weekStartISO);
+    const categoryCounts = countWeekCategories(weekPlan);
+    const usedThisWeek = new Set(getWeekRecipeIds(state.weekStartISO).filter((recipeId) => !getRecipe(recipeId)?.isWildcard));
+    const slots = [];
+    const rulesUsed = [];
+
+    getWeekDates(state.weekStartISO).forEach(({ dateISO }) => {
+      const dayPlan = weekPlan.days[dateISO] || createEmptyDayPlan();
+      if (!weekPlan.days[dateISO]) weekPlan.days[dateISO] = dayPlan;
+
+      dayPlan.lunch.forEach((recipeId, index) => {
+        if (!recipeId) slots.push({ dateISO, meal: "lunch", index });
+      });
+      dayPlan.dinner.forEach((recipeId, index) => {
+        if (!recipeId) slots.push({ dateISO, meal: "dinner", index });
+      });
+    });
+
+    slots.forEach((slot) => {
+      const preferredCategories = getPreferredCategories(categoryCounts);
+      const candidateSet = getCandidateRecipes(slot.meal, preferredCategories, recentRecipeIds, usedThisWeek);
+      const recipe = pickRandom(candidateSet.recipes);
+
+      if (!recipe) return;
+
+      weekPlan.days[slot.dateISO][slot.meal][slot.index] = recipe.id;
+      categoryCounts[recipe.category || "Otro"] += 1;
+      if (!recipe.isWildcard) usedThisWeek.add(recipe.id);
+      if (candidateSet.degraded) rulesUsed.push(`${slot.dateISO}-${slot.meal}-${slot.index}`);
+    });
+
+    console.log("Autocompletar semana", { weekStartISO: state.weekStartISO, rulesUsed });
+    render();
+    showToast(rulesUsed.length ? "Semana completada con ajustes" : "Semana completada");
   }
 
   function toggleRecipeStep(recipeId, stepIndex) {
@@ -340,9 +501,92 @@ document.addEventListener("DOMContentLoaded", () => {
               </button>
               <button class="tool-item" data-tool-action="preferences">
                 <span class="tool-title">Preferencias</span>
-                <span class="tool-subtitle">Proximamente</span>
+                <span class="tool-subtitle">Anti-repeticion, cuotas y reglas por receta</span>
               </button>
             </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderPreferencesModal() {
+    if (state.activeModal !== "preferences") return "";
+
+    const recipes = [...state.recipes]
+      .sort((a, b) => a.title.localeCompare(b.title, "es"))
+      .filter((recipe) => recipe.title.toLocaleLowerCase("es").includes(state.prefQuery.trim().toLocaleLowerCase("es")));
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="preferences-modal-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="preferences-modal-title">Preferencias</h2>
+              <div class="modal-time">Reglas de repeticion y uso por receta</div>
+            </div>
+          </div>
+
+          <div class="modal-body">
+            <section class="modal-section">
+              <h3 class="modal-section-title">No repetir en</h3>
+              <div class="prefs-stepper">
+                <button class="week-nav" data-pref-repeat="-1" aria-label="Reducir semanas">-</button>
+                <div class="week-range">${state.prefs.repeatWindowWeeks} semanas</div>
+                <button class="week-nav" data-pref-repeat="1" aria-label="Aumentar semanas">+</button>
+              </div>
+            </section>
+
+            <section class="modal-section">
+              <h3 class="modal-section-title">Cuotas semanales</h3>
+              <div class="quota-list">
+                ${CATEGORY_OPTIONS.map((category) => `
+                  <div class="quota-row">
+                    <span class="quota-label">${category}</span>
+                    <div class="quota-stepper">
+                      <button class="mini-step" data-pref-quota="${category}:-1">-</button>
+                      <span class="quota-value">${state.prefs.quotas[category]}</span>
+                      <button class="mini-step" data-pref-quota="${category}:1">+</button>
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            </section>
+
+            <section class="modal-section">
+              <h3 class="modal-section-title">Recetas</h3>
+              <div class="selector-search">
+                <input class="selector-input" type="search" placeholder="Buscar receta" value="${state.prefQuery}" data-pref-query>
+              </div>
+              <div class="prefs-recipe-list">
+                ${recipes.map((recipe) => `
+                  <div class="prefs-recipe-item">
+                    <div class="prefs-recipe-main">
+                      <div class="prefs-recipe-title">${recipe.title}</div>
+                      <span class="category-badge">${recipe.category || "Otro"}</span>
+                    </div>
+                    <div class="prefs-toggle-row">
+                      <label class="prefs-toggle">
+                        <input type="checkbox" data-pref-toggle="${recipe.id}:allowLunch" ${recipe.allowLunch ? "checked" : ""}>
+                        <span>Comida</span>
+                      </label>
+                      <label class="prefs-toggle">
+                        <input type="checkbox" data-pref-toggle="${recipe.id}:allowDinner" ${recipe.allowDinner ? "checked" : ""}>
+                        <span>Cena</span>
+                      </label>
+                      <label class="prefs-toggle">
+                        <input type="checkbox" data-pref-toggle="${recipe.id}:isWildcard" ${recipe.isWildcard ? "checked" : ""}>
+                        <span>Comodin</span>
+                      </label>
+                    </div>
+                  </div>
+                `).join("") || `<div class="modal-item">No hay recetas para esa busqueda</div>`}
+              </div>
+            </section>
           </div>
 
           <div class="modal-actions">
@@ -444,6 +688,17 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function schedulePreferencesFocus() {
+    if (state.activeModal !== "preferences") return;
+    requestAnimationFrame(() => {
+      const input = document.querySelector("[data-pref-query]");
+      if (!input) return;
+      input.focus();
+      const queryLength = input.value.length;
+      input.setSelectionRange(queryLength, queryLength);
+    });
+  }
+
   function refreshBuildHash() {
     fetch("https://api.github.com/repos/jrodriguezpolo-cell/mi-cocina/commits/main", { cache: "no-store" })
       .then((response) => {
@@ -490,7 +745,9 @@ document.addEventListener("DOMContentLoaded", () => {
       ${renderRecipeModal()}
       ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
+      ${renderPreferencesModal()}
       ${renderInfoModal()}
+      ${state.toastMessage ? `<div class="toast">${state.toastMessage}</div>` : ""}
     `;
 
     root.querySelectorAll("[data-view]").forEach((btn) => {
@@ -565,6 +822,10 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    root.querySelectorAll("[data-autocomplete-week]").forEach((btn) => {
+      btn.addEventListener("click", autocompleteWeek);
+    });
+
     root.querySelectorAll("[data-recipe-query]").forEach((input) => {
       input.addEventListener("input", () => {
         state.recipeQuery = input.value;
@@ -590,7 +851,34 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", () => {
         const action = btn.getAttribute("data-tool-action");
         if (action === "refresh") reloadApp();
-        if (action === "preferences") openInfoModal("Proximamente");
+        if (action === "preferences") openPreferencesModal();
+      });
+    });
+
+    root.querySelectorAll("[data-pref-repeat]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        updateRepeatWindow(Number(btn.getAttribute("data-pref-repeat") || 0));
+      });
+    });
+
+    root.querySelectorAll("[data-pref-quota]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [category, delta] = (btn.getAttribute("data-pref-quota") || "").split(":");
+        if (category) updateQuota(category, Number(delta || 0));
+      });
+    });
+
+    root.querySelectorAll("[data-pref-query]").forEach((input) => {
+      input.addEventListener("input", () => {
+        state.prefQuery = input.value;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-pref-toggle]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const [recipeId, field] = (input.getAttribute("data-pref-toggle") || "").split(":");
+        if (recipeId && field) updateRecipePreference(recipeId, field, input.checked);
       });
     });
 
@@ -606,6 +894,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     scheduleWeekScroll();
     scheduleSelectorFocus();
+    schedulePreferencesFocus();
   }
 
   function renderWeek() {
@@ -620,6 +909,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="week-range">${formatWeekRange(state.weekStartISO)}</div>
           <button class="week-nav" data-week-nav="next" aria-label="Semana siguiente">▶</button>
         </div>
+        <button class="primary week-autofill" data-autocomplete-week>Autocompletar semana</button>
         <p class="muted">Los platos ya se pueden tocar para abrir su ficha si estan vinculados a una receta.</p>
         <div class="week-grid">
           ${orderedWeekDates.map(({ date, dateISO }) => {
