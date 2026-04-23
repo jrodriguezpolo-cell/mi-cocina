@@ -487,6 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
     toastMessage: "",
     historyMonthISO: getCurrentMonthISO(),
     historyDetail: { type: "", value: "" },
+    recipeDeleteId: null,
     recipeEditor: {
       mode: "create",
       draft: createRecipeDraft()
@@ -683,6 +684,13 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
 
+  function openRecipeDeleteModal(recipeId) {
+    if (!getRecipe(recipeId)) return;
+    state.recipeDeleteId = recipeId;
+    state.activeModal = "recipe-delete";
+    render();
+  }
+
   function openPreferencesModal() {
     state.activeModal = "preferences";
     state.prefQuery = "";
@@ -706,6 +714,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeActiveModal() {
     state.activeModal = null;
     state.activeRecipeId = null;
+    state.recipeDeleteId = null;
     state.infoMessage = "";
     state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
     state.recipeQuery = "";
@@ -760,6 +769,41 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function clearRecipeSlot(dateISO, meal, index) {
     assignRecipeToSlot(dateISO, meal, index, null);
+  }
+
+  function removeRecipeFromPlans(recipeId) {
+    let didChange = false;
+
+    Object.values(state.plans).forEach((plan) => {
+      Object.values(plan.days || {}).forEach((dayPlan) => {
+        ["lunch", "dinner"].forEach((meal) => {
+          const slots = Array.isArray(dayPlan?.[meal]) ? dayPlan[meal] : [];
+          slots.forEach((slotRecipeId, index) => {
+            if (slotRecipeId !== recipeId) return;
+            dayPlan[meal][index] = null;
+            didChange = true;
+          });
+        });
+      });
+    });
+
+    if (didChange) savePlans();
+  }
+
+  function deleteRecipe(recipeId) {
+    const recipe = getRecipe(recipeId);
+    if (!recipe) return;
+
+    state.recipes = state.recipes.filter((item) => item.id !== recipeId);
+    if (state.expandedRecipeId === recipeId) {
+      state.expandedRecipeId = null;
+      state.expandedIngredientsAll = false;
+    }
+    delete state.recipeChecks[recipeId];
+    removeRecipeFromPlans(recipeId);
+    saveRecipes();
+    closeActiveModal();
+    showToast("Receta eliminada");
   }
 
   function updateRecipePreference(recipeId, field, checked) {
@@ -1085,6 +1129,35 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="modal-actions modal-actions-editor">
             <button class="primary editor-submit" data-save-recipe>${mode === "edit" ? "Guardar cambios" : "Guardar receta"}</button>
             <button class="open-recipe editor-cancel" data-close-modal-button>Cancelar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderRecipeDeleteModal() {
+    if (state.activeModal !== "recipe-delete") return "";
+
+    const recipe = getRecipe(state.recipeDeleteId);
+    if (!recipe) return "";
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="recipe-delete-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="recipe-delete-title">Eliminar receta</h2>
+              <div class="modal-time">${escapeHTML(recipe.title)}</div>
+            </div>
+          </div>
+
+          <div class="modal-body modal-body-compact">
+            <div class="modal-item">¿Eliminar esta receta? Esta acción no se puede deshacer.</div>
+          </div>
+
+          <div class="modal-actions modal-actions-stack">
+            <button class="danger" data-confirm-delete-recipe="${recipe.id}">Eliminar</button>
+            <button class="primary close-modal" data-close-modal-button>Cancelar</button>
           </div>
         </div>
       </div>
@@ -1724,6 +1797,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       ${renderRecipeModal()}
       ${renderRecipeEditorModal()}
+      ${renderRecipeDeleteModal()}
       ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
       ${renderHistoryStatsModal()}
@@ -1766,6 +1840,12 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", () => {
         const recipeId = btn.getAttribute("data-open-editor");
         openRecipeEditor(recipeId ? "edit" : "create", recipeId || "");
+      });
+    });
+
+    root.querySelectorAll("[data-open-delete]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openRecipeDeleteModal(btn.getAttribute("data-open-delete") || "");
       });
     });
 
@@ -1943,6 +2023,12 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", submitRecipeEditor);
     });
 
+    root.querySelectorAll("[data-confirm-delete-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        deleteRecipe(btn.getAttribute("data-confirm-delete-recipe") || "");
+      });
+    });
+
     root.querySelectorAll("[data-close-modal-button]").forEach((btn) => {
       btn.addEventListener("click", closeActiveModal);
     });
@@ -2000,57 +2086,59 @@ document.addEventListener("DOMContentLoaded", () => {
                 ${isToday ? `<span class="today-badge">HOY</span>` : ""}
               </div>
               <div class="day-year">${date.getFullYear()}</div>
-              <div class="slot slot-meal">
-                <span>Comida</span>
-                <div class="meal-plates">
-                  ${dayPlan.lunch.map((recipeId, index) => {
-                    const plate = getPlateEntry(recipeId);
-                    return `
-                    <div class="meal-plate">
-                      <button
-                        class="meal-plate-main"
-                        data-open-recipe-selector
-                        data-date-iso="${dateISO}"
-                        data-meal="lunch"
-                        data-index="${index}"
-                      >
-                        <span class="meal-plate-index">P${index + 1}</span>
-                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
-                      </button>
-                      ${plate.recipeId ? `
-                        <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
-                      ` : ""}
-                    </div>
-                  `;
-                  }).join("")}
+              <div class="day-meals-grid">
+                <div class="slot slot-meal slot-meal-column">
+                  <div class="slot-title">Comida</div>
+                  <div class="meal-plates">
+                    ${dayPlan.lunch.map((recipeId, index) => {
+                      const plate = getPlateEntry(recipeId);
+                      return `
+                      <div class="meal-plate">
+                        <button
+                          class="meal-plate-main"
+                          data-open-recipe-selector
+                          data-date-iso="${dateISO}"
+                          data-meal="lunch"
+                          data-index="${index}"
+                        >
+                          <span class="meal-plate-index">P${index + 1}</span>
+                          <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
+                        </button>
+                        ${plate.recipeId ? `
+                          <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
+                        ` : ""}
+                      </div>
+                    `;
+                    }).join("")}
+                  </div>
+                </div>
+                <div class="slot slot-meal slot-meal-column">
+                  <div class="slot-title">Cena</div>
+                  <div class="meal-plates">
+                    ${dayPlan.dinner.map((recipeId, index) => {
+                      const plate = getPlateEntry(recipeId);
+                      return `
+                      <div class="meal-plate">
+                        <button
+                          class="meal-plate-main"
+                          data-open-recipe-selector
+                          data-date-iso="${dateISO}"
+                          data-meal="dinner"
+                          data-index="${index}"
+                        >
+                          <span class="meal-plate-index">P${index + 1}</span>
+                          <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
+                        </button>
+                        ${plate.recipeId ? `
+                          <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
+                        ` : ""}
+                      </div>
+                    `;
+                    }).join("")}
+                  </div>
                 </div>
               </div>
-              <div class="slot slot-meal">
-                <span>Cena</span>
-                <div class="meal-plates">
-                  ${dayPlan.dinner.map((recipeId, index) => {
-                    const plate = getPlateEntry(recipeId);
-                    return `
-                    <div class="meal-plate">
-                      <button
-                        class="meal-plate-main"
-                        data-open-recipe-selector
-                        data-date-iso="${dateISO}"
-                        data-meal="dinner"
-                        data-index="${index}"
-                      >
-                        <span class="meal-plate-index">P${index + 1}</span>
-                        <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
-                      </button>
-                      ${plate.recipeId ? `
-                        <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
-                      ` : ""}
-                    </div>
-                  `;
-                  }).join("")}
-                </div>
-              </div>
-              <div class="slot"><span>Turno</span>
+              <div class="slot slot-turn"><span class="slot-title">Turno</span>
                 <select class="select" data-work-status="${dateISO}">
                   ${WORK_STATUS_OPTIONS.map((option) => `
                     <option value="${option}" ${dayPlan.workStatus === option ? "selected" : ""}>${option}</option>
@@ -2114,6 +2202,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div class="recipe-details-side">
                       <button class="open-recipe" data-open-recipe="${recipe.id}">Abrir ficha</button>
                       <button class="open-recipe open-recipe-secondary" data-open-editor="${recipe.id}">Editar</button>
+                      <button class="open-recipe open-recipe-danger" data-open-delete="${recipe.id}">Eliminar</button>
                     </div>
                   </div>
                 ` : ""}
