@@ -1,9 +1,10 @@
 document.addEventListener("DOMContentLoaded", () => {
   const state = {
     view: "week",
+    expandedRecipeId: null,
     recipes: [
-      { id: "alb", title: "Albóndigas", timeMin: 90, ingredients: ["Carne 500g", "Huevo 1", "Pan rallado"], steps: ["Mezclar", "Formar", "Cocer"] },
-      { id: "gaz", title: "Gazpacho", timeMin: 15, ingredients: ["Tomate 1kg", "Pepino", "Ajo"], steps: ["Triturar", "Enfriar"] }
+      { id: "alb", title: "Albóndigas", category: "Carne", timeMin: 90, ingredients: ["Carne 500g", "Huevo 1", "Pan rallado"], steps: ["Mezclar", "Formar", "Cocer"] },
+      { id: "gaz", title: "Gazpacho", category: "Verdura", timeMin: 15, ingredients: ["Tomate 1kg", "Pepino", "Ajo"], steps: ["Triturar", "Enfriar"] }
     ]
   };
 
@@ -30,7 +31,23 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.view = btn.getAttribute("data-view");
+        state.expandedRecipeId = null;
         render();
+      });
+    });
+
+    root.querySelectorAll("[data-recipe-toggle]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const recipeId = btn.getAttribute("data-recipe-toggle");
+        state.expandedRecipeId = state.expandedRecipeId === recipeId ? null : recipeId;
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-open-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const recipe = state.recipes.find(r => r.id === btn.getAttribute("data-open-recipe"));
+        if (recipe) alert(`Abrir ficha: ${recipe.title}`);
       });
     });
   }
@@ -69,10 +86,24 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
         <div class="list">
           ${items.map(r => `
-            <button class="recipe" data-id="${r.id}">
-              <div class="recipe-title">${r.title}</div>
-              <div class="recipe-meta">${r.timeMin} min · ${r.ingredients.length} ingredientes</div>
-            </button>
+            <div class="recipe-item">
+              <button class="recipe" data-recipe-toggle="${r.id}" aria-expanded="${state.expandedRecipeId === r.id}">
+                <div class="recipe-title">${r.title}</div>
+                <div class="recipe-meta">${r.timeMin} min · ${r.ingredients.length} ingredientes</div>
+              </button>
+              ${state.expandedRecipeId === r.id ? `
+                <div class="recipe-details">
+                  <div class="recipe-details-main">
+                    <div class="recipe-summary">${r.ingredients.join(", ")}</div>
+                    <div class="recipe-total">Total: ${r.timeMin} min</div>
+                  </div>
+                  <div class="recipe-details-side">
+                    <span class="category-badge">${r.category || "Otro"}</span>
+                    <button class="open-recipe" data-open-recipe="${r.id}">Abrir ficha</button>
+                  </div>
+                </div>
+              ` : ""}
+            </div>
           `).join("")}
         </div>
         <p class="muted">Siguiente: mini-ficha y receta completa.</p>
