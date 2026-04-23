@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   const state = {
-    buildHash: "cb1dd5f",
+    buildHash: "53d7cd7",
     view: "week",
     weekStartISO: getCurrentWeekStartISO(),
     expandedRecipeId: null,
@@ -225,7 +225,11 @@ document.addEventListener("DOMContentLoaded", () => {
         isActive: true,
         timeMin: 35,
         ingredients: [{ name: "Merluza" }, { name: "Patata" }, { name: "Ajo" }],
-        steps: ["Preparar fuente", "Hornear merluza", "Servir"]
+        steps: [
+          { text: "Precalentar el horno", tempC: 200, minutes: 10, note: "Calor arriba y abajo" },
+          { text: "Hornear la merluza", tempC: 200, minutes: 18, note: "Dar la vuelta a mitad si el corte es grueso" },
+          { text: "Reposo", minutes: 3 }
+        ]
       },
       {
         id: "ens",
@@ -249,7 +253,11 @@ document.addEventListener("DOMContentLoaded", () => {
         isActive: true,
         timeMin: 28,
         ingredients: [{ name: "Calabacin" }, { name: "Patata" }, { name: "Cebolla" }],
-        steps: ["Cocer verduras", "Triturar", "Ajustar textura"]
+        steps: [
+          { text: "Cocer verduras", minutes: 18, heat: "medio" },
+          { text: "Triturar", minutes: 4, note: "Anadir agua si queda muy espesa" },
+          { text: "Ajustar textura", minutes: 2 }
+        ]
       },
       {
         id: "cer",
@@ -279,7 +287,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = "cb1dd5f";
+  const BUILD_FALLBACK = "53d7cd7";
   let toastTimer = null;
 
   function ensureWeekPlan(weekStartISO, template) {
@@ -388,6 +396,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function summarizeIngredients(ingredients) {
     if (!Array.isArray(ingredients) || !ingredients.length) return "Pendiente de completar";
     return ingredients.map((ingredient) => formatIngredient(ingredient)).filter(Boolean).join(", ");
+  }
+
+  function normalizeStep(step) {
+    if (typeof step === "string") return { text: step };
+    return {
+      text: step?.text || "",
+      minutes: step?.minutes,
+      tempC: step?.tempC,
+      heat: step?.heat,
+      note: step?.note || ""
+    };
   }
 
   function openRecipeModal(recipeId) {
@@ -600,7 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!recipe || state.activeModal !== "recipe") return "";
 
     const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
-    const steps = Array.isArray(recipe.steps) ? recipe.steps : [];
+    const steps = Array.isArray(recipe.steps) ? recipe.steps.map(normalizeStep) : [];
     const checks = state.recipeChecks[recipe.id] || {};
 
     return `
@@ -635,7 +654,17 @@ document.addEventListener("DOMContentLoaded", () => {
                   ${steps.map((step, index) => `
                     <label class="check-item">
                       <input type="checkbox" data-step-toggle="${recipe.id}:${index}" ${checks[index] ? "checked" : ""}>
-                      <span>${step}</span>
+                      <span class="check-copy">
+                        <span>${step.text}</span>
+                        ${(step.minutes || step.tempC || step.heat) ? `
+                          <span class="step-chips">
+                            ${step.minutes ? `<span class="step-chip">⏱ ${step.minutes} min</span>` : ""}
+                            ${step.tempC ? `<span class="step-chip">🌡 ${step.tempC}ºC</span>` : ""}
+                            ${step.heat ? `<span class="step-chip">🔥 ${step.heat}</span>` : ""}
+                          </span>
+                        ` : ""}
+                        ${step.note ? `<span class="step-note">${step.note}</span>` : ""}
+                      </span>
                     </label>
                   `).join("")}
                 </div>
@@ -1091,8 +1120,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const todayISO = toISODate(startOfLocalDay(new Date()));
 
     return `
-      <section class="card" id="week-panel">
-        <div class="week-actions">
+      <section class="card week-panel" id="week-panel">
+        <div class="week-header-bar">
           <button class="primary week-autofill" data-autocomplete-week>Autocompletar semana</button>
         </div>
         <p class="muted">Los platos ya se pueden tocar para abrir su ficha si estan vinculados a una receta.</p>

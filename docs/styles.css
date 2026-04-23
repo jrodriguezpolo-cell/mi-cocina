@@ -98,6 +98,9 @@ body.modal-open{overflow:hidden}
   padding:14px;
   box-shadow:0 10px 30px rgba(0,0,0,.25);
 }
+.week-panel{
+  overflow:visible;
+}
 .row{display:flex; align-items:center; justify-content:space-between; gap:12px}
 .muted{color:var(--muted); font-size:13px; line-height:1.35}
 .primary{
@@ -137,13 +140,14 @@ body.modal-open{overflow:hidden}
 .week-autofill{
   width:100%;
 }
-.week-actions{
+.week-header-bar{
   position:sticky;
-  top:100px;
+  top:108px;
   z-index:9;
-  margin:-2px 0 10px;
-  padding-bottom:8px;
-  background:linear-gradient(180deg,rgba(11,18,32,.98) 0%, rgba(11,18,32,.84) 74%, rgba(11,18,32,0) 100%);
+  margin:-14px -14px 10px;
+  padding:12px 14px 10px;
+  border-bottom:1px solid var(--border);
+  background:rgba(17,26,46,.98);
 }
 .week-grid{
   margin-top:12px;
@@ -156,7 +160,7 @@ body.modal-open{overflow:hidden}
   border-radius:14px;
   padding:12px;
   background:rgba(255,255,255,.03);
-  scroll-margin-top:100px;
+  scroll-margin-top:180px;
 }
 .day-head{
   display:flex;
@@ -561,6 +565,31 @@ body.modal-open{overflow:hidden}
   background:rgba(255,255,255,.03);
   font-size:14px;
   line-height:1.35;
+}
+.check-copy{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+.step-chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+.step-chip{
+  padding:3px 7px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+  font-size:11px;
+  font-weight:700;
+  line-height:1;
+}
+.step-note{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.3;
 }
 .check-item input{
   width:20px;
