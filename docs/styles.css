@@ -299,6 +299,55 @@ body.modal-open{overflow:hidden}
   background:rgba(0,0,0,.22);
   color:var(--text);
 }
+.day-meta-grid{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.day-meta-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.day-meta-row .select{
+  min-width:132px;
+}
+.day-people-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:8px;
+}
+.day-people-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  padding:8px 9px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:rgba(255,255,255,.03);
+}
+.day-people-label{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+}
+.day-people-stepper{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.day-people-value{
+  min-width:18px;
+  text-align:center;
+  font-size:13px;
+  font-weight:800;
+}
+.day-people-reset{
+  align-self:flex-end;
+}
 .list{margin-top:12px; display:flex; flex-direction:column; gap:8px}
 .recipe-item{
   border:1px solid var(--border);
@@ -544,6 +593,16 @@ body.modal-open{overflow:hidden}
 .field-textarea{
   min-height:130px;
   resize:vertical;
+}
+.field-static{
+  width:100%;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.03);
+  color:var(--muted);
+  font-size:15px;
+  font-weight:700;
 }
 .editor-check-grid{
   display:grid;
@@ -929,6 +988,17 @@ body.modal-open{overflow:hidden}
     grid-template-columns:1fr 1fr;
     gap:7px;
   }
+  .day-meta-row{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .day-meta-row .select{
+    width:100%;
+    min-width:0;
+  }
+  .day-people-grid{
+    grid-template-columns:1fr;
+  }
   .recipe-details{
     grid-template-columns:1fr;
   }
@@ -945,6 +1015,10 @@ body.modal-open{overflow:hidden}
   }
   .slot-meal-column{
     padding:7px;
+  }
+  .day-people-reset{
+    width:100%;
+    text-align:center;
   }
   .history-week-item{
     align-items:stretch;

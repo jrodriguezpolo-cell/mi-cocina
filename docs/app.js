@@ -5,7 +5,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const WORK_STATUS_OPTIONS = ["Mañana", "Tarde", "Dobla", "Guardia", "Libre"];
   const DEFAULT_PREFS = {
     repeatWindowWeeks: 2,
-    quotas: { Legumbre: 2, Pescado: 2, Verdura: 3, Carne: 2, Otro: 5 }
+    quotas: { Legumbre: 2, Pescado: 2, Verdura: 3, Carne: 2, Otro: 5 },
+    comensalesPorDefecto: 5
   };
   const DEFAULT_WEEK_TEMPLATE = [
     { lunch: ["alb", "gaz"], dinner: [null, null], workStatus: "Mañana" },
@@ -18,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
   ];
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
+  const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const DEFAULT_RECIPES = [
     {
@@ -264,11 +266,27 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function createEmptyDayPlan() {
+    const defaultPeople = DEFAULT_PREFS.comensalesPorDefecto;
     return {
       lunch: [null, null],
       dinner: [null, null],
-      workStatus: "Mañana"
+      workStatus: "Mañana",
+      lunchPeople: defaultPeople,
+      dinnerPeople: defaultPeople,
+      lunchPeopleOverridden: false,
+      dinnerPeopleOverridden: false
     };
+  }
+
+  function getDefaultPeopleByWorkStatus(workStatus, defaultPeople) {
+    if (workStatus === "Guardia") return { lunchPeople: 4, dinnerPeople: 4 };
+    if (workStatus === "Dobla") return { lunchPeople: 4, dinnerPeople: defaultPeople };
+    return { lunchPeople: defaultPeople, dinnerPeople: defaultPeople };
+  }
+
+  function getNormalizedDefaultPeople(workStatus, prefs = DEFAULT_PREFS) {
+    const defaultPeople = Number.isFinite(Number(prefs?.comensalesPorDefecto)) ? Math.max(1, Number(prefs.comensalesPorDefecto)) : 5;
+    return getDefaultPeopleByWorkStatus(workStatus || "Mañana", defaultPeople);
   }
 
   function normalizeRecipeId(id, index) {
@@ -296,6 +314,10 @@ document.addEventListener("DOMContentLoaded", () => {
       allowDinner: recipe?.allowDinner !== false,
       isWildcard: Boolean(recipe?.isWildcard),
       isActive: recipe?.isActive !== false,
+      servingsBase: Number.isFinite(Number(recipe?.servingsBase)) ? Math.max(1, Number(recipe.servingsBase)) : 5,
+      kcalPerServing: recipe?.kcalPerServing === "" || recipe?.kcalPerServing === null || recipe?.kcalPerServing === undefined
+        ? null
+        : (Number.isFinite(Number(recipe?.kcalPerServing)) ? Math.max(0, Number(recipe.kcalPerServing)) : null),
       timeMin: Number.isFinite(Number(recipe?.timeMin)) ? Math.max(0, Number(recipe.timeMin)) : 0,
       ingredients: Array.isArray(recipe?.ingredients)
         ? recipe.ingredients.filter((ingredient) => Boolean(formatIngredient(ingredient).trim()))
@@ -310,9 +332,39 @@ document.addEventListener("DOMContentLoaded", () => {
     return Array.isArray(recipes) ? recipes.map((recipe, index) => normalizeRecipe(recipe, index)) : [];
   }
 
-  function normalizeDayPlan(dayPlan) {
+  function normalizePrefs(prefs) {
+    return {
+      repeatWindowWeeks: Number.isFinite(Number(prefs?.repeatWindowWeeks)) ? clamp(Number(prefs.repeatWindowWeeks), 1, 4) : DEFAULT_PREFS.repeatWindowWeeks,
+      quotas: {
+        ...DEFAULT_PREFS.quotas,
+        ...Object.fromEntries(
+          CATEGORY_OPTIONS.map((category) => [
+            category,
+            Number.isFinite(Number(prefs?.quotas?.[category])) ? clamp(Number(prefs.quotas[category]), 0, 28) : DEFAULT_PREFS.quotas[category]
+          ])
+        )
+      },
+      comensalesPorDefecto: Number.isFinite(Number(prefs?.comensalesPorDefecto))
+        ? Math.max(1, Number(prefs.comensalesPorDefecto))
+        : DEFAULT_PREFS.comensalesPorDefecto
+    };
+  }
+
+  function loadStoredPrefs() {
+    try {
+      const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+      if (!raw) return normalizePrefs(DEFAULT_PREFS);
+      return normalizePrefs(JSON.parse(raw));
+    } catch (error) {
+      return normalizePrefs(DEFAULT_PREFS);
+    }
+  }
+
+  function normalizeDayPlan(dayPlan, prefs = DEFAULT_PREFS) {
     const lunch = Array.isArray(dayPlan?.lunch) ? dayPlan.lunch.slice(0, 2).map((recipeId) => (recipeId ? String(recipeId) : null)) : [];
     const dinner = Array.isArray(dayPlan?.dinner) ? dayPlan.dinner.slice(0, 2).map((recipeId) => (recipeId ? String(recipeId) : null)) : [];
+    const workStatus = dayPlan?.workStatus || "Mañana";
+    const defaults = getNormalizedDefaultPeople(workStatus, prefs);
 
     while (lunch.length < 2) lunch.push(null);
     while (dinner.length < 2) dinner.push(null);
@@ -320,22 +372,26 @@ document.addEventListener("DOMContentLoaded", () => {
     return {
       lunch,
       dinner,
-      workStatus: dayPlan?.workStatus || "Mañana"
+      workStatus,
+      lunchPeople: Number.isFinite(Number(dayPlan?.lunchPeople)) ? Math.max(1, Number(dayPlan.lunchPeople)) : defaults.lunchPeople,
+      dinnerPeople: Number.isFinite(Number(dayPlan?.dinnerPeople)) ? Math.max(1, Number(dayPlan.dinnerPeople)) : defaults.dinnerPeople,
+      lunchPeopleOverridden: Boolean(dayPlan?.lunchPeopleOverridden),
+      dinnerPeopleOverridden: Boolean(dayPlan?.dinnerPeopleOverridden)
     };
   }
 
-  function normalizeWeekPlan(plan) {
+  function normalizeWeekPlan(plan, prefs = DEFAULT_PREFS) {
     const normalizedDays = {};
     const sourceDays = plan?.days && typeof plan.days === "object" ? plan.days : {};
 
     Object.entries(sourceDays).forEach(([dateISO, dayPlan]) => {
-      normalizedDays[dateISO] = normalizeDayPlan(dayPlan);
+      normalizedDays[dateISO] = normalizeDayPlan(dayPlan, prefs);
     });
 
     return { days: normalizedDays };
   }
 
-  function loadStoredPlans() {
+  function loadStoredPlans(prefs = DEFAULT_PREFS) {
     try {
       const raw = localStorage.getItem(PLANS_STORAGE_KEY);
       if (!raw) return {};
@@ -343,7 +399,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!parsed || typeof parsed !== "object") return {};
 
       return Object.fromEntries(
-        Object.entries(parsed).map(([weekStartISO, plan]) => [weekStartISO, normalizeWeekPlan(plan)])
+        Object.entries(parsed).map(([weekStartISO, plan]) => [weekStartISO, normalizeWeekPlan(plan, prefs)])
       );
     } catch (error) {
       return {};
@@ -364,6 +420,8 @@ document.addEventListener("DOMContentLoaded", () => {
       title: source.title || "",
       category: CATEGORY_OPTIONS.includes(source.category) ? source.category : "Otro",
       timeMin: source.timeMin || source.timeMin === 0 ? String(source.timeMin) : "",
+      servingsBase: source.servingsBase || 5,
+      kcalPerServing: source.kcalPerServing || source.kcalPerServing === 0 ? String(source.kcalPerServing) : "",
       ingredients,
       steps,
       allowLunch: source.allowLunch !== false,
@@ -382,6 +440,8 @@ document.addEventListener("DOMContentLoaded", () => {
       title,
       category: CATEGORY_OPTIONS.includes(draft.category) ? draft.category : "Otro",
       timeMin: Number.isFinite(timeValue) ? timeValue : 0,
+      servingsBase: 5,
+      kcalPerServing: draft.kcalPerServing === "" ? null : Number(draft.kcalPerServing),
       ingredients: String(draft.ingredients || "")
         .split("\n")
         .map((line) => line.trim())
@@ -468,6 +528,8 @@ document.addEventListener("DOMContentLoaded", () => {
     return `Semana ${startLabel}-${endLabel} ${end.getFullYear()}`;
   }
 
+  const initialPrefs = loadStoredPrefs();
+
   const state = {
     buildHash: "53d7cd7",
     view: "week",
@@ -482,12 +544,13 @@ document.addEventListener("DOMContentLoaded", () => {
     prefQuery: "",
     pendingWeekScroll: true,
     recipeChecks: {},
-    plans: loadStoredPlans(),
-    prefs: { ...DEFAULT_PREFS, quotas: { ...DEFAULT_PREFS.quotas } },
+    plans: loadStoredPlans(initialPrefs),
+    prefs: initialPrefs,
     toastMessage: "",
     historyMonthISO: getCurrentMonthISO(),
     historyDetail: { type: "", value: "" },
     recipeDeleteId: null,
+    activeRecipeContext: null,
     recipeEditor: {
       mode: "create",
       draft: createRecipeDraft()
@@ -504,6 +567,14 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem(RECIPES_STORAGE_KEY, JSON.stringify(state.recipes));
     } catch (error) {
       showToast("No se pudo guardar en este navegador");
+    }
+  }
+
+  function savePrefs() {
+    try {
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(state.prefs));
+    } catch (error) {
+      showToast("No se pudieron guardar las preferencias");
     }
   }
 
@@ -524,10 +595,16 @@ document.addEventListener("DOMContentLoaded", () => {
     for (let index = 0; index < 7; index += 1) {
       const dateISO = toISODate(addDays(weekStartDate, index));
       const templateDay = template && template[index];
+      const workStatus = templateDay?.workStatus || "Mañana";
+      const defaultPeople = getNormalizedDefaultPeople(workStatus);
       days[dateISO] = {
         lunch: templateDay?.lunch ? [...templateDay.lunch] : [null, null],
         dinner: templateDay?.dinner ? [...templateDay.dinner] : [null, null],
-        workStatus: templateDay?.workStatus || "Mañana"
+        workStatus,
+        lunchPeople: defaultPeople.lunchPeople,
+        dinnerPeople: defaultPeople.dinnerPeople,
+        lunchPeopleOverridden: false,
+        dinnerPeopleOverridden: false
       };
     }
 
@@ -637,10 +714,11 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
-  function openRecipeModal(recipeId) {
+  function openRecipeModal(recipeId, context = null) {
     if (!getRecipe(recipeId)) return;
     state.activeModal = "recipe";
     state.activeRecipeId = recipeId;
+    state.activeRecipeContext = context;
     state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
     render();
   }
@@ -706,6 +784,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function openRecipeSelector(dateISO, meal, index) {
     state.activeModal = "recipe-selector";
     state.activeRecipeId = null;
+    state.activeRecipeContext = null;
     state.recipeQuery = "";
     state.selectorOpen = { open: true, dateISO, meal, index };
     render();
@@ -714,6 +793,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeActiveModal() {
     state.activeModal = null;
     state.activeRecipeId = null;
+    state.activeRecipeContext = null;
     state.recipeDeleteId = null;
     state.infoMessage = "";
     state.selectorOpen = { open: false, dateISO: "", meal: "lunch", index: 0 };
@@ -816,12 +896,61 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateRepeatWindow(delta) {
     state.prefs.repeatWindowWeeks = clamp(state.prefs.repeatWindowWeeks + delta, 1, 4);
+    savePrefs();
     render();
   }
 
   function updateQuota(category, delta) {
     if (!state.prefs.quotas[category] && state.prefs.quotas[category] !== 0) return;
     state.prefs.quotas[category] = clamp(state.prefs.quotas[category] + delta, 0, 28);
+    savePrefs();
+    render();
+  }
+
+  function updateDefaultPeople(delta) {
+    state.prefs.comensalesPorDefecto = Math.max(1, state.prefs.comensalesPorDefecto + delta);
+
+    Object.values(state.plans).forEach((plan) => {
+      Object.values(plan.days || {}).forEach((dayPlan) => {
+        const defaults = getNormalizedDefaultPeople(dayPlan.workStatus, state.prefs);
+        if (!dayPlan.lunchPeopleOverridden) dayPlan.lunchPeople = defaults.lunchPeople;
+        if (!dayPlan.dinnerPeopleOverridden) dayPlan.dinnerPeople = defaults.dinnerPeople;
+      });
+    });
+
+    savePrefs();
+    savePlans();
+    render();
+  }
+
+  function getDayPeople(dayPlan, meal) {
+    return meal === "dinner" ? dayPlan.dinnerPeople : dayPlan.lunchPeople;
+  }
+
+  function updateDayPeople(dateISO, meal, delta) {
+    const weekPlan = getWeekPlan(state.weekStartISO);
+    if (!weekPlan.days[dateISO]) weekPlan.days[dateISO] = createEmptyDayPlan();
+    const dayPlan = weekPlan.days[dateISO];
+    const peopleField = meal === "dinner" ? "dinnerPeople" : "lunchPeople";
+    const overrideField = meal === "dinner" ? "dinnerPeopleOverridden" : "lunchPeopleOverridden";
+
+    dayPlan[peopleField] = Math.max(1, Number(dayPlan[peopleField] || 1) + delta);
+    dayPlan[overrideField] = true;
+    savePlans();
+    render();
+  }
+
+  function resetDayPeople(dateISO) {
+    const weekPlan = getWeekPlan(state.weekStartISO);
+    if (!weekPlan.days[dateISO]) weekPlan.days[dateISO] = createEmptyDayPlan();
+    const dayPlan = weekPlan.days[dateISO];
+    const defaults = getNormalizedDefaultPeople(dayPlan.workStatus, state.prefs);
+
+    dayPlan.lunchPeople = defaults.lunchPeople;
+    dayPlan.dinnerPeople = defaults.dinnerPeople;
+    dayPlan.lunchPeopleOverridden = false;
+    dayPlan.dinnerPeopleOverridden = false;
+    savePlans();
     render();
   }
 
@@ -990,6 +1119,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const ingredients = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
     const steps = Array.isArray(recipe.steps) ? recipe.steps.map(normalizeStep) : [];
     const checks = state.recipeChecks[recipe.id] || {};
+    const contextDayPlan = state.activeRecipeContext?.dateISO ? getWeekPlan(state.weekStartISO).days[state.activeRecipeContext.dateISO] : null;
+    const contextPeople = contextDayPlan && state.activeRecipeContext?.meal ? getDayPeople(contextDayPlan, state.activeRecipeContext.meal) : null;
+    const kcalPerServing = recipe.kcalPerServing;
+    const kcalTotal = kcalPerServing !== null && contextPeople ? kcalPerServing * contextPeople : null;
 
     return `
       <div class="modal-overlay" data-close-modal>
@@ -998,6 +1131,9 @@ document.addEventListener("DOMContentLoaded", () => {
             <div>
               <h2 class="modal-title" id="recipe-modal-title">${escapeHTML(recipe.title)}</h2>
               <div class="modal-time">Tiempo total: ${recipe.timeMin || 0} min</div>
+              <div class="modal-time">Raciones base: ${recipe.servingsBase || 5}</div>
+              ${kcalPerServing !== null ? `<div class="modal-time">Kcal/ración: ${kcalPerServing}</div>` : ""}
+              ${kcalTotal !== null ? `<div class="modal-time">Kcal total (${contextPeople} comensales): ${kcalTotal}</div>` : ""}
             </div>
             <span class="category-badge modal-category">${recipe.category || "Otro"}</span>
           </div>
@@ -1086,6 +1222,18 @@ document.addEventListener("DOMContentLoaded", () => {
               <label class="field">
                 <span class="field-label">Tiempo total (min)</span>
                 <input class="field-input" type="number" min="0" inputmode="numeric" value="${escapeHTML(draft.timeMin)}" data-editor-field="timeMin" placeholder="0">
+              </label>
+            </section>
+
+            <section class="modal-section editor-grid">
+              <div class="field">
+                <span class="field-label">Raciones base</span>
+                <div class="field-static">5</div>
+              </div>
+
+              <label class="field">
+                <span class="field-label">Kcal por ración</span>
+                <input class="field-input" type="number" min="0" inputmode="numeric" value="${escapeHTML(draft.kcalPerServing)}" data-editor-field="kcalPerServing" placeholder="Opcional">
               </label>
             </section>
 
@@ -1549,6 +1697,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
           <div class="modal-body">
             <section class="modal-section">
+              <h3 class="modal-section-title">Comensales por defecto</h3>
+              <div class="prefs-stepper">
+                <button class="week-nav" data-pref-people="-1" aria-label="Reducir comensales">-</button>
+                <div class="week-range">${state.prefs.comensalesPorDefecto} personas</div>
+                <button class="week-nav" data-pref-people="1" aria-label="Aumentar comensales">+</button>
+              </div>
+            </section>
+
+            <section class="modal-section">
               <h3 class="modal-section-title">No repetir en</h3>
               <div class="prefs-stepper">
                 <button class="week-nav" data-pref-repeat="-1" aria-label="Reducir semanas">-</button>
@@ -1895,7 +2052,12 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-view-week-recipe]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const recipeId = btn.getAttribute("data-view-week-recipe");
-        if (recipeId) openRecipeModal(recipeId);
+        if (recipeId) {
+          openRecipeModal(recipeId, {
+            dateISO: btn.getAttribute("data-date-iso") || "",
+            meal: btn.getAttribute("data-meal") || "lunch"
+          });
+        }
       });
     });
 
@@ -1904,8 +2066,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const weekPlan = getWeekPlan(state.weekStartISO);
         const dateISO = select.getAttribute("data-work-status");
         if (!dateISO || !weekPlan.days[dateISO]) return;
-        weekPlan.days[dateISO].workStatus = select.value;
+        const dayPlan = weekPlan.days[dateISO];
+        dayPlan.workStatus = select.value;
+        const defaults = getNormalizedDefaultPeople(dayPlan.workStatus, state.prefs);
+        if (!dayPlan.lunchPeopleOverridden) dayPlan.lunchPeople = defaults.lunchPeople;
+        if (!dayPlan.dinnerPeopleOverridden) dayPlan.dinnerPeople = defaults.dinnerPeople;
         savePlans();
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-day-people-adjust]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [dateISO, meal, delta] = (btn.getAttribute("data-day-people-adjust") || "").split(":");
+        if (!dateISO || !meal) return;
+        updateDayPeople(dateISO, meal, Number(delta || 0));
+      });
+    });
+
+    root.querySelectorAll("[data-day-people-reset]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        resetDayPeople(btn.getAttribute("data-day-people-reset") || "");
       });
     });
 
@@ -1981,6 +2162,12 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-pref-repeat]").forEach((btn) => {
       btn.addEventListener("click", () => {
         updateRepeatWindow(Number(btn.getAttribute("data-pref-repeat") || 0));
+      });
+    });
+
+    root.querySelectorAll("[data-pref-people]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        updateDefaultPeople(Number(btn.getAttribute("data-pref-people") || 0));
       });
     });
 
@@ -2105,7 +2292,7 @@ document.addEventListener("DOMContentLoaded", () => {
                           <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
                         </button>
                         ${plate.recipeId ? `
-                          <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
+                          <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}" data-date-iso="${dateISO}" data-meal="lunch">Ver</button>
                         ` : ""}
                       </div>
                     `;
@@ -2130,7 +2317,7 @@ document.addEventListener("DOMContentLoaded", () => {
                           <span class="meal-plate-title ${plate.recipeId ? "" : "meal-plate-empty"}">${plate.recipeId ? escapeHTML(plate.title) : "+ Añadir"}</span>
                         </button>
                         ${plate.recipeId ? `
-                          <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}">Ver</button>
+                          <button class="meal-plate-view" data-view-week-recipe="${plate.recipeId}" data-date-iso="${dateISO}" data-meal="dinner">Ver</button>
                         ` : ""}
                       </div>
                     `;
@@ -2138,12 +2325,36 @@ document.addEventListener("DOMContentLoaded", () => {
                   </div>
                 </div>
               </div>
-              <div class="slot slot-turn"><span class="slot-title">Turno</span>
-                <select class="select" data-work-status="${dateISO}">
-                  ${WORK_STATUS_OPTIONS.map((option) => `
-                    <option value="${option}" ${dayPlan.workStatus === option ? "selected" : ""}>${option}</option>
-                  `).join("")}
-                </select>
+              <div class="slot slot-turn">
+                <div class="day-meta-grid">
+                  <div class="day-meta-row">
+                    <span class="slot-title">Turno</span>
+                    <select class="select" data-work-status="${dateISO}">
+                      ${WORK_STATUS_OPTIONS.map((option) => `
+                        <option value="${option}" ${dayPlan.workStatus === option ? "selected" : ""}>${option}</option>
+                      `).join("")}
+                    </select>
+                  </div>
+                  <div class="day-people-grid">
+                    <div class="day-people-row">
+                      <span class="day-people-label">Comida</span>
+                      <div class="day-people-stepper">
+                        <button class="mini-step" data-day-people-adjust="${dateISO}:lunch:-1">-</button>
+                        <span class="day-people-value">${dayPlan.lunchPeople}</span>
+                        <button class="mini-step" data-day-people-adjust="${dateISO}:lunch:1">+</button>
+                      </div>
+                    </div>
+                    <div class="day-people-row">
+                      <span class="day-people-label">Cena</span>
+                      <div class="day-people-stepper">
+                        <button class="mini-step" data-day-people-adjust="${dateISO}:dinner:-1">-</button>
+                        <span class="day-people-value">${dayPlan.dinnerPeople}</span>
+                        <button class="mini-step" data-day-people-adjust="${dateISO}:dinner:1">+</button>
+                      </div>
+                    </div>
+                  </div>
+                  <button class="mini day-people-reset" data-day-people-reset="${dateISO}">Reset</button>
+                </div>
               </div>
             </div>
           `;
@@ -2232,6 +2443,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("resize", updateHeaderHeight);
   window.addEventListener("orientationchange", updateHeaderHeight);
   ensureWeekPlan(state.weekStartISO, DEFAULT_WEEK_TEMPLATE);
+  savePrefs();
   saveRecipes();
   savePlans();
   refreshBuildHash();
