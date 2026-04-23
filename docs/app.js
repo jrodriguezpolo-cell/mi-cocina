@@ -16,7 +16,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     root.innerHTML = `
       <header class="topbar">
-        <div class="title">Mi Cocina</div>
+        <div class="topbar-head">
+          <div class="title">Mi Cocina</div>
+          <div class="build-badge">Build: 15dab5f</div>
+        </div>
         <nav class="tabs">
           <button class="tab ${state.view === "week" ? "active" : ""}" data-view="week">Semana</button>
           <button class="tab ${state.view === "recipes" ? "active" : ""}" data-view="recipes">Recetas</button>
