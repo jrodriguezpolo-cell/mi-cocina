@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
     { lunch: [null, null], dinner: [null, null], workStatus: "Libre" }
   ];
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
+  const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const DEFAULT_RECIPES = [
     {
@@ -309,6 +310,46 @@ document.addEventListener("DOMContentLoaded", () => {
     return Array.isArray(recipes) ? recipes.map((recipe, index) => normalizeRecipe(recipe, index)) : [];
   }
 
+  function normalizeDayPlan(dayPlan) {
+    const lunch = Array.isArray(dayPlan?.lunch) ? dayPlan.lunch.slice(0, 2).map((recipeId) => (recipeId ? String(recipeId) : null)) : [];
+    const dinner = Array.isArray(dayPlan?.dinner) ? dayPlan.dinner.slice(0, 2).map((recipeId) => (recipeId ? String(recipeId) : null)) : [];
+
+    while (lunch.length < 2) lunch.push(null);
+    while (dinner.length < 2) dinner.push(null);
+
+    return {
+      lunch,
+      dinner,
+      workStatus: dayPlan?.workStatus || "Mañana"
+    };
+  }
+
+  function normalizeWeekPlan(plan) {
+    const normalizedDays = {};
+    const sourceDays = plan?.days && typeof plan.days === "object" ? plan.days : {};
+
+    Object.entries(sourceDays).forEach(([dateISO, dayPlan]) => {
+      normalizedDays[dateISO] = normalizeDayPlan(dayPlan);
+    });
+
+    return { days: normalizedDays };
+  }
+
+  function loadStoredPlans() {
+    try {
+      const raw = localStorage.getItem(PLANS_STORAGE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return {};
+
+      return Object.fromEntries(
+        Object.entries(parsed).map(([weekStartISO, plan]) => [weekStartISO, normalizeWeekPlan(plan)])
+      );
+    } catch (error) {
+      return {};
+    }
+  }
+
   function createRecipeDraft(recipe) {
     const source = recipe || {};
     const ingredients = Array.isArray(source.ingredients)
@@ -393,6 +434,40 @@ document.addEventListener("DOMContentLoaded", () => {
       .replaceAll("'", "&#39;");
   }
 
+  function getCurrentMonthISO() {
+    const today = new Date();
+    return `${today.getFullYear()}-${pad(today.getMonth() + 1)}`;
+  }
+
+  function monthISOToDate(monthISO) {
+    const [year, month] = String(monthISO).split("-").map(Number);
+    return new Date(year, (month || 1) - 1, 1);
+  }
+
+  function formatMonthLabel(monthISO) {
+    const monthDate = monthISOToDate(monthISO);
+    return `${MONTH_SHORT[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
+  }
+
+  function shiftMonthISO(monthISO, delta) {
+    const monthDate = monthISOToDate(monthISO);
+    monthDate.setMonth(monthDate.getMonth() + delta, 1);
+    return `${monthDate.getFullYear()}-${pad(monthDate.getMonth() + 1)}`;
+  }
+
+  function isDateInMonth(dateISO, monthISO) {
+    return dateISO.startsWith(`${monthISO}-`);
+  }
+
+  function formatWeekRangeShort(weekStartISO) {
+    const start = fromISODate(weekStartISO);
+    const end = addDays(start, 6);
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    const startLabel = `${start.getDate()} ${MONTH_SHORT[start.getMonth()]}`;
+    const endLabel = sameMonth ? `${end.getDate()} ${MONTH_SHORT[end.getMonth()]}` : `${end.getDate()} ${MONTH_SHORT[end.getMonth()]}`;
+    return `Semana ${startLabel}-${endLabel} ${end.getFullYear()}`;
+  }
+
   const state = {
     buildHash: "53d7cd7",
     view: "week",
@@ -407,9 +482,10 @@ document.addEventListener("DOMContentLoaded", () => {
     prefQuery: "",
     pendingWeekScroll: true,
     recipeChecks: {},
-    plans: {},
+    plans: loadStoredPlans(),
     prefs: { ...DEFAULT_PREFS, quotas: { ...DEFAULT_PREFS.quotas } },
     toastMessage: "",
+    historyMonthISO: getCurrentMonthISO(),
     recipeEditor: {
       mode: "create",
       draft: createRecipeDraft()
@@ -426,6 +502,14 @@ document.addEventListener("DOMContentLoaded", () => {
       localStorage.setItem(RECIPES_STORAGE_KEY, JSON.stringify(state.recipes));
     } catch (error) {
       showToast("No se pudo guardar en este navegador");
+    }
+  }
+
+  function savePlans() {
+    try {
+      localStorage.setItem(PLANS_STORAGE_KEY, JSON.stringify(state.plans));
+    } catch (error) {
+      showToast("No se pudo guardar el historico");
     }
   }
 
@@ -446,6 +530,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     state.plans[weekStartISO] = { days };
+    savePlans();
     return state.plans[weekStartISO];
   }
 
@@ -557,6 +642,11 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
 
+  function openHistoryStatsModal() {
+    state.activeModal = "history-stats";
+    render();
+  }
+
   function openPreferencesModal() {
     state.activeModal = "preferences";
     state.prefQuery = "";
@@ -591,6 +681,11 @@ document.addEventListener("DOMContentLoaded", () => {
     render();
   }
 
+  function closeHistoryStatsModal() {
+    state.activeModal = "tools";
+    render();
+  }
+
   function reloadApp() {
     try {
       sessionStorage.clear();
@@ -606,6 +701,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const weekPlan = getWeekPlan(state.weekStartISO);
     if (!weekPlan.days[dateISO]) weekPlan.days[dateISO] = createEmptyDayPlan();
     weekPlan.days[dateISO][meal][index] = recipeId;
+    savePlans();
     closeActiveModal();
   }
 
@@ -744,6 +840,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     console.log("Autocompletar semana", { weekStartISO: state.weekStartISO, rulesUsed });
+    savePlans();
     render();
     showToast(rulesUsed.length ? "Semana completada con ajustes" : "Semana completada");
   }
@@ -964,11 +1061,135 @@ document.addEventListener("DOMContentLoaded", () => {
                 <span class="tool-title">Preferencias</span>
                 <span class="tool-subtitle">Anti-repeticion, cuotas y reglas por receta</span>
               </button>
+              <button class="tool-item" data-tool-action="history-stats">
+                <span class="tool-title">Histórico y estadísticas</span>
+                <span class="tool-subtitle">Resumen mensual por recetas, categorias y semanas guardadas</span>
+              </button>
             </div>
           </div>
 
           <div class="modal-actions">
             <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function getMonthlyStats(monthISO) {
+    const countsByRecipeId = new Map();
+    const countsByCategory = new Map(CATEGORY_OPTIONS.map((category) => [category, 0]));
+    const weeksInMonth = [];
+
+    Object.entries(state.plans)
+      .sort(([leftWeekISO], [rightWeekISO]) => leftWeekISO.localeCompare(rightWeekISO))
+      .forEach(([weekStartISO, plan]) => {
+        const days = plan?.days && typeof plan.days === "object" ? plan.days : {};
+        let weekHasMonthDay = false;
+
+        Object.entries(days).forEach(([dateISO, dayPlan]) => {
+          if (!isDateInMonth(dateISO, monthISO)) return;
+          weekHasMonthDay = true;
+
+          [...(Array.isArray(dayPlan?.lunch) ? dayPlan.lunch : []), ...(Array.isArray(dayPlan?.dinner) ? dayPlan.dinner : [])]
+            .filter(Boolean)
+            .forEach((recipeId) => {
+              const safeRecipeId = String(recipeId);
+              countsByRecipeId.set(safeRecipeId, (countsByRecipeId.get(safeRecipeId) || 0) + 1);
+
+              const recipe = getRecipe(safeRecipeId);
+              if (!recipe) return;
+              const category = recipe.category || "Otro";
+              countsByCategory.set(category, (countsByCategory.get(category) || 0) + 1);
+            });
+        });
+
+        if (weekHasMonthDay) weeksInMonth.push(weekStartISO);
+      });
+
+    const topRecipes = [...countsByRecipeId.entries()]
+      .map(([recipeId, count]) => {
+        const recipe = getRecipe(recipeId);
+        return {
+          recipeId,
+          count,
+          title: recipe ? recipe.title : "Receta eliminada"
+        };
+      })
+      .sort((left, right) => right.count - left.count || left.title.localeCompare(right.title, "es"))
+      .slice(0, 10);
+
+    return {
+      topRecipes,
+      countsByCategory,
+      weeksInMonth
+    };
+  }
+
+  function renderHistoryStatsModal() {
+    if (state.activeModal !== "history-stats") return "";
+
+    const monthLabel = formatMonthLabel(state.historyMonthISO);
+    const monthlyStats = getMonthlyStats(state.historyMonthISO);
+
+    return `
+      <div class="modal-overlay" data-history-overlay>
+        <div class="modal-card modal-card-history" role="dialog" aria-modal="true" aria-labelledby="history-stats-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="history-stats-title">Histórico y estadísticas</h2>
+              <div class="modal-time">Contando plato 1 y plato 2 de comida y cena</div>
+            </div>
+          </div>
+
+          <div class="modal-body">
+            <section class="modal-section">
+              <div class="history-month-picker">
+                <button class="week-nav" data-history-month="-1" aria-label="Mes anterior">◀</button>
+                <div class="history-month-label">${monthLabel}</div>
+                <button class="week-nav" data-history-month="1" aria-label="Mes siguiente">▶</button>
+              </div>
+            </section>
+
+            <section class="modal-section">
+              <h3 class="modal-section-title">Recetas más repetidas del mes</h3>
+              <div class="history-card-list">
+                ${monthlyStats.topRecipes.length ? monthlyStats.topRecipes.map((entry) => `
+                  <div class="history-row">
+                    <span class="history-row-label">${escapeHTML(entry.title)}</span>
+                    <span class="history-row-value">${entry.count}</span>
+                  </div>
+                `).join("") : `<div class="modal-item">No hay platos guardados en este mes</div>`}
+              </div>
+            </section>
+
+            <section class="modal-section">
+              <h3 class="modal-section-title">Por categoría (mes)</h3>
+              <div class="history-card-list">
+                ${CATEGORY_OPTIONS.map((category) => `
+                  <div class="history-row">
+                    <span class="history-row-label">${category}</span>
+                    <span class="history-row-value">${monthlyStats.countsByCategory.get(category) || 0}</span>
+                  </div>
+                `).join("")}
+              </div>
+            </section>
+
+            <section class="modal-section">
+              <h3 class="modal-section-title">Semanas del mes</h3>
+              <div class="history-weeks-list">
+                ${monthlyStats.weeksInMonth.length ? monthlyStats.weeksInMonth.map((weekStartISO) => `
+                  <div class="history-week-item">
+                    <span class="history-week-label">${formatWeekRangeShort(weekStartISO)}</span>
+                    <button class="open-recipe" data-open-history-week="${weekStartISO}">Ver</button>
+                  </div>
+                `).join("") : `<div class="modal-item">No hay semanas guardadas para este mes</div>`}
+              </div>
+            </section>
+          </div>
+
+          <div class="modal-actions">
+            <button class="primary close-modal" data-close-history-button>Cerrar</button>
           </div>
         </div>
       </div>
@@ -1244,6 +1465,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ${renderRecipeEditorModal()}
       ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
+      ${renderHistoryStatsModal()}
       ${renderPreferencesModal()}
       ${renderInfoModal()}
       ${state.toastMessage ? `<div class="toast">${state.toastMessage}</div>` : ""}
@@ -1339,6 +1561,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const dateISO = select.getAttribute("data-work-status");
         if (!dateISO || !weekPlan.days[dateISO]) return;
         weekPlan.days[dateISO].workStatus = select.value;
+        savePlans();
       });
     });
 
@@ -1372,6 +1595,27 @@ document.addEventListener("DOMContentLoaded", () => {
         const action = btn.getAttribute("data-tool-action");
         if (action === "refresh") reloadApp();
         if (action === "preferences") openPreferencesModal();
+        if (action === "history-stats") openHistoryStatsModal();
+      });
+    });
+
+    root.querySelectorAll("[data-history-month]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.historyMonthISO = shiftMonthISO(state.historyMonthISO, Number(btn.getAttribute("data-history-month") || 0));
+        render();
+      });
+    });
+
+    root.querySelectorAll("[data-open-history-week]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const weekStartISO = btn.getAttribute("data-open-history-week");
+        if (!weekStartISO) return;
+        state.weekStartISO = weekStartISO;
+        state.view = "week";
+        state.pendingWeekScroll = true;
+        ensureWeekPlan(state.weekStartISO);
+        state.activeModal = null;
+        render();
       });
     });
 
@@ -1424,9 +1668,19 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.addEventListener("click", closeActiveModal);
     });
 
+    root.querySelectorAll("[data-close-history-button]").forEach((btn) => {
+      btn.addEventListener("click", closeHistoryStatsModal);
+    });
+
     root.querySelectorAll("[data-close-modal]").forEach((overlay) => {
       overlay.addEventListener("click", (event) => {
         if (event.target === overlay) closeActiveModal();
+      });
+    });
+
+    root.querySelectorAll("[data-history-overlay]").forEach((overlay) => {
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closeHistoryStatsModal();
       });
     });
 
@@ -1583,6 +1837,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && state.activeModal === "history-stats") {
+      closeHistoryStatsModal();
+      return;
+    }
     if (event.key === "Escape" && state.activeModal) closeActiveModal();
   });
 
@@ -1590,6 +1848,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.addEventListener("orientationchange", updateHeaderHeight);
   ensureWeekPlan(state.weekStartISO, DEFAULT_WEEK_TEMPLATE);
   saveRecipes();
+  savePlans();
   refreshBuildHash();
   render();
 });

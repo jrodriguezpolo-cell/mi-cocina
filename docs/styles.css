@@ -440,6 +440,9 @@ body.modal-open{overflow:hidden}
 .modal-card-editor{
   max-width:560px;
 }
+.modal-card-history{
+  max-width:520px;
+}
 .modal-head{
   display:flex;
   align-items:flex-start;
@@ -689,6 +692,53 @@ body.modal-open{overflow:hidden}
   font-size:12px;
   line-height:1.3;
 }
+.history-month-picker{
+  display:grid;
+  grid-template-columns:36px minmax(0,1fr) 36px;
+  gap:10px;
+  align-items:center;
+}
+.history-month-label{
+  padding:9px 10px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.03);
+  text-align:center;
+  font-size:14px;
+  font-weight:800;
+}
+.history-card-list,
+.history-weeks-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.history-row,
+.history-week-item{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:11px 12px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:rgba(255,255,255,.03);
+}
+.history-row-label,
+.history-week-label{
+  min-width:0;
+  font-size:14px;
+  font-weight:700;
+  line-height:1.3;
+}
+.history-row-value{
+  flex:0 0 auto;
+  min-width:22px;
+  text-align:right;
+  color:var(--text);
+  font-size:15px;
+  font-weight:800;
+}
 .checklist{
   display:flex;
   flex-direction:column;
@@ -796,5 +846,9 @@ body.modal-open{overflow:hidden}
   .open-recipe{
     width:100%;
     text-align:center;
+  }
+  .history-week-item{
+    align-items:stretch;
+    flex-direction:column;
   }
 }
