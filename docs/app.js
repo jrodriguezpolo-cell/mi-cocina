@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
-  const APP_BUILD = "MC_V2_IMPORTER_MOBILE_FIX";
-  const APP_BUILD_LABEL = "v2";
+  const APP_BUILD = "MC_V3_IMPORT_REVIEW_ROLLBACK";
+  const APP_BUILD_LABEL = "v3";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const NUTRITION_DB = {
     "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
@@ -322,6 +322,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function normalizeRecipeId(id, index) {
     if (id || id === 0) return String(id);
     return `recipe-${Date.now()}-${index}`;
+  }
+
+  function cloneRecipe(recipe) {
+    return JSON.parse(JSON.stringify(recipe));
   }
 
   function normalizeStep(step) {
@@ -758,6 +762,7 @@ document.addEventListener("DOMContentLoaded", () => {
     importRecipesStatus: "",
     importRecipesText: "",
     importRecipesUpdateExisting: false,
+    lastImportResult: { created: [], updated: [], skippedDuplicates: [], invalid: [] },
     selectorOpen: { open: false, dateISO: "", meal: "lunch", index: 0 },
     recipeQuery: "",
     prefQuery: "",
@@ -957,6 +962,13 @@ document.addEventListener("DOMContentLoaded", () => {
     state.activeModal = "tools";
     state.infoMessage = "";
     state.importRecipesStatus = "";
+    render();
+  }
+
+  function openImportReviewModal() {
+    const resultCount = state.lastImportResult.created.length + state.lastImportResult.updated.length;
+    if (!resultCount) return;
+    state.activeModal = "import-review";
     render();
   }
 
@@ -1333,11 +1345,17 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast(existingIndex >= 0 ? "Receta actualizada" : "Receta creada");
   }
 
+  function createEmptyImportResult() {
+    return { created: [], updated: [], skippedDuplicates: [], invalid: [] };
+  }
+
   function importRecipesFromText(rawText, updateExisting = false) {
     let parsed;
+    const importResult = createEmptyImportResult();
     try {
       parsed = JSON.parse(String(rawText || "").trim());
     } catch (error) {
+      state.lastImportResult = importResult;
       state.importRecipesStatus = "JSON invalido. Revisa el texto pegado.";
       render();
       return;
@@ -1345,6 +1363,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const incoming = Array.isArray(parsed) ? parsed : parsed?.recipes;
     if (!Array.isArray(incoming)) {
+      state.lastImportResult = importResult;
       state.importRecipesStatus = "El JSON debe ser un array de recetas o un objeto con clave recipes.";
       render();
       return;
@@ -1365,6 +1384,10 @@ document.addEventListener("DOMContentLoaded", () => {
         errors.forEach((error) => {
           invalidReasons[error] = (invalidReasons[error] || 0) + 1;
         });
+        importResult.invalid.push({
+          title: String(entry?.title ?? entry?.titulo ?? entry?.nombre ?? entry?.name ?? "Sin titulo").trim(),
+          reason: errors.join(", ")
+        });
         return;
       }
 
@@ -1373,6 +1396,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const existingRecipe = existingByTitle.get(normalizedTitle);
       if (existingRecipe && !updateExisting) {
         duplicateCount += 1;
+        importResult.skippedDuplicates.push({ title: String(importedTitle || "").trim(), reason: "titulo duplicado" });
         return;
       }
 
@@ -1380,13 +1404,19 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!recipe || !normalizedTitle) {
         invalidCount += 1;
         invalidReasons["formato no reconocido"] = (invalidReasons["formato no reconocido"] || 0) + 1;
+        importResult.invalid.push({
+          title: String(importedTitle || "Sin titulo").trim(),
+          reason: "formato no reconocido"
+        });
         return;
       }
 
       if (existingRecipe) {
+        const before = cloneRecipe(existingRecipe);
         const existingIndex = state.recipes.findIndex((item) => item.id === existingRecipe.id);
         if (existingIndex >= 0) state.recipes[existingIndex] = recipe;
         existingByTitle.set(normalizedTitle, recipe);
+        importResult.updated.push({ before, after: cloneRecipe(recipe), restored: false });
         updatedCount += 1;
         return;
       }
@@ -1397,6 +1427,7 @@ document.addEventListener("DOMContentLoaded", () => {
       existingIds.add(String(recipe.id));
       existingByTitle.set(normalizedTitle, recipe);
       state.recipes.push(recipe);
+      importResult.created.push(cloneRecipe(recipe));
       newCount += 1;
     });
 
@@ -1408,8 +1439,37 @@ document.addEventListener("DOMContentLoaded", () => {
     const reasonText = Object.entries(invalidReasons)
       .map(([reason, count]) => `${reason}: ${count}`)
       .join(", ");
+    state.lastImportResult = importResult;
     state.importRecipesStatus = `Importadas nuevas: ${newCount}. Actualizadas: ${updatedCount}. Duplicadas omitidas: ${duplicateCount}. Inválidas: ${invalidCount}.${reasonText ? ` Motivos: ${reasonText}.` : ""}`;
     render();
+  }
+
+  function restoreImportedRecipe(updateIndex) {
+    const updateEntry = state.lastImportResult.updated[updateIndex];
+    if (!updateEntry || updateEntry.restored) return;
+
+    const title = updateEntry.before?.title || updateEntry.after?.title || "esta receta";
+    const confirmed = window.confirm(`¿Restaurar la versión anterior de '${title}'? Se perderán los cambios importados para esta receta.`);
+    if (!confirmed) return;
+
+    const previousRecipe = cloneRecipe(updateEntry.before);
+    previousRecipe.id = String(updateEntry.after?.id || updateEntry.before?.id || previousRecipe.id);
+    const currentIndex = state.recipes.findIndex((recipe) => String(recipe.id) === String(previousRecipe.id));
+    const fallbackIndex = currentIndex >= 0
+      ? currentIndex
+      : state.recipes.findIndex((recipe) => normalizeImportTitle(recipe.title) === normalizeImportTitle(updateEntry.after?.title || previousRecipe.title));
+
+    if (fallbackIndex < 0) {
+      showToast("No se encontro la receta para restaurar");
+      return;
+    }
+
+    state.recipes[fallbackIndex] = normalizeRecipe(previousRecipe, fallbackIndex);
+    state.recipes.sort((left, right) => left.title.localeCompare(right.title, "es"));
+    updateEntry.restored = true;
+    saveRecipes();
+    render();
+    showToast("Versión anterior restaurada.");
   }
 
   function renderRecipeModal() {
@@ -1652,6 +1712,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderToolsModal() {
     if (state.activeModal !== "tools") return "";
+    const importedReviewCount = state.lastImportResult.created.length + state.lastImportResult.updated.length;
 
     return `
       <div class="modal-overlay" data-close-modal>
@@ -1706,7 +1767,85 @@ document.addEventListener("DOMContentLoaded", () => {
               <div class="tools-import-help">Útil para completar recetas que ya existen solo con título.</div>
               <button class="primary tools-import-button" data-import-recipes-button>Importar recetas</button>
               ${state.importRecipesStatus ? `<div class="tools-import-status">${escapeHTML(state.importRecipesStatus)}</div>` : ""}
+              ${importedReviewCount ? `
+                <div class="tools-import-review">
+                  <div>Se han importado/actualizado ${importedReviewCount} recetas.</div>
+                  <button class="open-recipe tools-import-review-button" data-open-import-review>Ver recetas importadas</button>
+                </div>
+              ` : ""}
             </section>
+          </div>
+
+          <div class="modal-actions">
+            <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderImportReviewModal() {
+    if (state.activeModal !== "import-review") return "";
+
+    const result = state.lastImportResult;
+    const createdItems = result.created.map((recipe) => ({
+      id: recipe.id,
+      title: recipe.title,
+      badge: "Nueva",
+      restored: false,
+      ingredientCount: Array.isArray(recipe.ingredients) ? recipe.ingredients.length : 0,
+      stepCount: Array.isArray(recipe.steps) ? recipe.steps.length : 0
+    }));
+    const updatedItems = result.updated.map((entry, index) => {
+      const displayRecipe = entry.restored ? entry.before : entry.after;
+      return {
+        id: displayRecipe.id,
+        title: displayRecipe.title,
+        badge: entry.restored ? "Restaurada" : "Actualizada",
+        restored: Boolean(entry.restored),
+        updateIndex: index,
+        ingredientCount: Array.isArray(displayRecipe.ingredients) ? displayRecipe.ingredients.length : 0,
+        stepCount: Array.isArray(displayRecipe.steps) ? displayRecipe.steps.length : 0
+      };
+    });
+    const items = [...updatedItems, ...createdItems];
+
+    return `
+      <div class="modal-overlay" data-close-modal>
+        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="import-review-title">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="import-review-title">Recetas importadas</h2>
+              <div class="modal-time">Nuevas: ${result.created.length} · Actualizadas: ${result.updated.length}</div>
+            </div>
+          </div>
+
+          <div class="modal-body import-review-body">
+            ${items.length ? `
+              <div class="import-review-list">
+                ${items.map((item) => `
+                  <div class="import-review-item">
+                    <div class="import-review-main">
+                      <div class="import-review-title">${escapeHTML(item.title)}</div>
+                      <div class="import-review-meta">
+                        <span class="import-review-badge ${item.restored ? "import-review-badge-restored" : ""}">${escapeHTML(item.badge)}</span>
+                        <span>${item.ingredientCount} ingredientes · ${item.stepCount} pasos</span>
+                      </div>
+                    </div>
+                    <div class="import-review-actions">
+                      <button class="open-recipe" data-open-imported-recipe="${escapeHTML(item.id)}">Ver ficha</button>
+                      ${item.updateIndex !== undefined ? `
+                        <button class="open-recipe open-recipe-secondary" data-restore-imported-recipe="${item.updateIndex}" ${item.restored ? "disabled" : ""}>
+                          ${item.restored ? "Restaurada" : "Restaurar versión anterior"}
+                        </button>
+                      ` : ""}
+                    </div>
+                  </div>
+                `).join("")}
+              </div>
+            ` : `
+              <div class="modal-item">No hay recetas nuevas o actualizadas en la ultima importacion.</div>
+            `}
           </div>
 
           <div class="modal-actions">
@@ -2324,6 +2463,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ${renderRecipeDeleteModal()}
       ${renderRecipeSelectorModal()}
       ${renderToolsModal()}
+      ${renderImportReviewModal()}
       ${renderHistoryStatsModal()}
       ${renderHistoryRecipeDetailModal()}
       ${renderHistoryCategoryDetailModal()}
@@ -2510,6 +2650,23 @@ document.addEventListener("DOMContentLoaded", () => {
         state.importRecipesText = input ? input.value : "";
         state.importRecipesUpdateExisting = updateExisting;
         importRecipesFromText(state.importRecipesText, updateExisting);
+      });
+    });
+
+    root.querySelectorAll("[data-open-import-review]").forEach((btn) => {
+      btn.addEventListener("click", openImportReviewModal);
+    });
+
+    root.querySelectorAll("[data-open-imported-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const recipeId = btn.getAttribute("data-open-imported-recipe");
+        if (recipeId) openRecipeModal(recipeId);
+      });
+    });
+
+    root.querySelectorAll("[data-restore-imported-recipe]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        restoreImportedRecipe(Number(btn.getAttribute("data-restore-imported-recipe")));
       });
     });
 
