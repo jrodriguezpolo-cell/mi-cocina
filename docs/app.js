@@ -20,7 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
-  const APP_BUILD = "MC_V1_IMPORT_JSON_NUTRITION_VISIBLE";
+  const APP_BUILD = "MC_V2_IMPORTER_MOBILE_FIX";
+  const APP_BUILD_LABEL = "v2";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const NUTRITION_DB = {
     "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
@@ -366,16 +367,22 @@ document.addEventListener("DOMContentLoaded", () => {
     return [];
   }
 
+  function getImportedValue(recipe, keys) {
+    return keys.find((key) => Object.prototype.hasOwnProperty.call(recipe || {}, key));
+  }
+
   function getImportedFlag(recipe, field, fallback = true) {
     const mealFlags = recipe?.mealFlags || recipe?.flags || {};
     if (Object.prototype.hasOwnProperty.call(recipe || {}, field)) return recipe[field] !== false;
     if (field === "allowLunch") {
+      if (recipe?.mealLunch !== undefined) return Boolean(recipe.mealLunch);
       if (recipe?.comida !== undefined) return Boolean(recipe.comida);
       if (mealFlags.comida !== undefined) return Boolean(mealFlags.comida);
       if (mealFlags.lunch !== undefined) return Boolean(mealFlags.lunch);
       if (Array.isArray(mealFlags)) return mealFlags.includes("comida") || mealFlags.includes("lunch");
     }
     if (field === "allowDinner") {
+      if (recipe?.mealDinner !== undefined) return Boolean(recipe.mealDinner);
       if (recipe?.cena !== undefined) return Boolean(recipe.cena);
       if (mealFlags.cena !== undefined) return Boolean(mealFlags.cena);
       if (mealFlags.dinner !== undefined) return Boolean(mealFlags.dinner);
@@ -393,24 +400,48 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/\s+/g, " ");
   }
 
-  function coerceImportedRecipe(recipe, index) {
+  function getImportRecipeErrors(recipe) {
+    const errors = [];
+    if (!recipe || typeof recipe !== "object" || Array.isArray(recipe)) {
+      return ["formato no reconocido"];
+    }
+
+    const title = String(recipe?.title ?? recipe?.titulo ?? recipe?.nombre ?? recipe?.name ?? "").trim();
+    if (!title) errors.push("falta titulo");
+
+    const ingredientsKey = getImportedValue(recipe, ["ingredients", "ingredientes"]);
+    if (ingredientsKey && !Array.isArray(recipe[ingredientsKey]) && typeof recipe[ingredientsKey] !== "string") {
+      errors.push("ingredients no convertible");
+    }
+
+    const stepsKey = getImportedValue(recipe, ["steps", "pasos", "preparacion", "preparación"]);
+    if (stepsKey && !Array.isArray(recipe[stepsKey]) && typeof recipe[stepsKey] !== "string") {
+      errors.push("steps no convertible");
+    }
+
+    return errors;
+  }
+
+  function coerceImportedRecipe(recipe, index, baseRecipe = null) {
     const title = String(recipe?.title ?? recipe?.titulo ?? recipe?.nombre ?? recipe?.name ?? "").trim();
     if (!title) return null;
+    const ingredientsKey = getImportedValue(recipe, ["ingredients", "ingredientes"]);
+    const stepsKey = getImportedValue(recipe, ["steps", "pasos", "preparacion", "preparación"]);
 
     return normalizeRecipe({
       ...recipe,
-      id: recipe?.id || `import-${Date.now()}-${index}`,
+      id: baseRecipe?.id || recipe?.id || `import-${Date.now()}-${index}`,
       title,
-      category: recipe?.category || recipe?.categoria,
-      allowLunch: getImportedFlag(recipe, "allowLunch", true),
-      allowDinner: getImportedFlag(recipe, "allowDinner", true),
-      isWildcard: Boolean(recipe?.isWildcard ?? recipe?.comodin ?? recipe?.comodín ?? false),
-      isActive: recipe?.isActive ?? recipe?.activa ?? (recipe?.silenciada !== undefined ? !recipe.silenciada : true),
-      servingsBase: recipe?.servingsBase ?? recipe?.racionesBase ?? recipe?.raciones,
-      kcalPerServing: recipe?.kcalPerServing ?? recipe?.kcalPorRacion,
-      timeMin: recipe?.timeMin ?? recipe?.tiempoMin ?? recipe?.tiempo,
-      ingredients: normalizeImportedIngredients(recipe?.ingredients ?? recipe?.ingredientes),
-      steps: normalizeImportedSteps(recipe?.steps ?? recipe?.pasos ?? recipe?.preparacion ?? recipe?.preparación)
+      category: recipe?.category || recipe?.categoria || baseRecipe?.category,
+      allowLunch: getImportedFlag(recipe, "allowLunch", baseRecipe ? baseRecipe.allowLunch !== false : true),
+      allowDinner: getImportedFlag(recipe, "allowDinner", baseRecipe ? baseRecipe.allowDinner !== false : true),
+      isWildcard: recipe?.isWildcard ?? recipe?.comodin ?? recipe?.comodín ?? baseRecipe?.isWildcard ?? false,
+      isActive: recipe?.isActive ?? recipe?.activa ?? (recipe?.silenciada !== undefined ? !recipe.silenciada : baseRecipe?.isActive ?? true),
+      servingsBase: recipe?.servingsBase ?? recipe?.racionesBase ?? recipe?.raciones ?? baseRecipe?.servingsBase,
+      kcalPerServing: recipe?.kcalPerServing ?? recipe?.kcalPorRacion ?? baseRecipe?.kcalPerServing,
+      timeMin: recipe?.timeMin ?? recipe?.tiempoMin ?? recipe?.tiempo ?? baseRecipe?.timeMin,
+      ingredients: ingredientsKey ? normalizeImportedIngredients(recipe[ingredientsKey]) : (baseRecipe?.ingredients || []),
+      steps: stepsKey ? normalizeImportedSteps(recipe[stepsKey]) : (baseRecipe?.steps || [])
     }, index);
   }
 
@@ -716,7 +747,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const initialPrefs = loadStoredPrefs();
 
   const state = {
-    buildHash: APP_BUILD,
+    buildHash: APP_BUILD_LABEL,
     view: "week",
     weekStartISO: getCurrentWeekStartISO(),
     expandedRecipeId: null,
@@ -725,6 +756,8 @@ document.addEventListener("DOMContentLoaded", () => {
     activeRecipeId: null,
     infoMessage: "",
     importRecipesStatus: "",
+    importRecipesText: "",
+    importRecipesUpdateExisting: false,
     selectorOpen: { open: false, dateISO: "", meal: "lunch", index: 0 },
     recipeQuery: "",
     prefQuery: "",
@@ -745,7 +778,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = APP_BUILD;
+  const BUILD_FALLBACK = APP_BUILD_LABEL;
   let toastTimer = null;
 
   function saveRecipes() {
@@ -1300,7 +1333,7 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast(existingIndex >= 0 ? "Receta actualizada" : "Receta creada");
   }
 
-  function importRecipesFromText(rawText) {
+  function importRecipesFromText(rawText, updateExisting = false) {
     let parsed;
     try {
       parsed = JSON.parse(String(rawText || "").trim());
@@ -1317,33 +1350,65 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const existingTitles = new Set(state.recipes.map((recipe) => normalizeImportTitle(recipe.title)));
+    const existingByTitle = new Map(state.recipes.map((recipe) => [normalizeImportTitle(recipe.title), recipe]));
     const existingIds = new Set(state.recipes.map((recipe) => String(recipe.id)));
-    let importedCount = 0;
-    let omittedCount = 0;
+    const invalidReasons = {};
+    let newCount = 0;
+    let updatedCount = 0;
+    let duplicateCount = 0;
+    let invalidCount = 0;
 
     incoming.forEach((entry, index) => {
-      const recipe = coerceImportedRecipe(entry, index);
-      const normalizedTitle = normalizeImportTitle(recipe?.title);
-      if (!recipe || !normalizedTitle || existingTitles.has(normalizedTitle)) {
-        omittedCount += 1;
+      const errors = getImportRecipeErrors(entry);
+      if (errors.length) {
+        invalidCount += 1;
+        errors.forEach((error) => {
+          invalidReasons[error] = (invalidReasons[error] || 0) + 1;
+        });
         return;
       }
+
+      const importedTitle = entry?.title ?? entry?.titulo ?? entry?.nombre ?? entry?.name;
+      const normalizedTitle = normalizeImportTitle(importedTitle);
+      const existingRecipe = existingByTitle.get(normalizedTitle);
+      if (existingRecipe && !updateExisting) {
+        duplicateCount += 1;
+        return;
+      }
+
+      const recipe = coerceImportedRecipe(entry, index, existingRecipe);
+      if (!recipe || !normalizedTitle) {
+        invalidCount += 1;
+        invalidReasons["formato no reconocido"] = (invalidReasons["formato no reconocido"] || 0) + 1;
+        return;
+      }
+
+      if (existingRecipe) {
+        const existingIndex = state.recipes.findIndex((item) => item.id === existingRecipe.id);
+        if (existingIndex >= 0) state.recipes[existingIndex] = recipe;
+        existingByTitle.set(normalizedTitle, recipe);
+        updatedCount += 1;
+        return;
+      }
+
       if (existingIds.has(String(recipe.id))) {
         recipe.id = `import-${Date.now()}-${index}`;
       }
       existingIds.add(String(recipe.id));
-      existingTitles.add(normalizedTitle);
+      existingByTitle.set(normalizedTitle, recipe);
       state.recipes.push(recipe);
-      importedCount += 1;
+      newCount += 1;
     });
 
-    if (importedCount > 0) {
+    if (newCount > 0 || updatedCount > 0) {
       state.recipes.sort((left, right) => left.title.localeCompare(right.title, "es"));
       saveRecipes();
     }
 
-    state.importRecipesStatus = `Importadas ${importedCount} recetas. Omitidas ${omittedCount} por duplicadas o invalidas.`;
+    const reasonText = Object.entries(invalidReasons)
+      .map(([reason, count]) => `${reason}: ${count}`)
+      .join(", ");
+    state.importRecipesStatus = `Importadas nuevas: ${newCount}. Actualizadas: ${updatedCount}. Duplicadas omitidas: ${duplicateCount}. Inválidas: ${invalidCount}.${reasonText ? ` Motivos: ${reasonText}.` : ""}`;
     render();
   }
 
@@ -1616,7 +1681,29 @@ document.addEventListener("DOMContentLoaded", () => {
             <section class="tools-import">
               <h3 class="modal-section-title">Importar recetas JSON</h3>
               <p class="tools-import-copy">Pega aquí un JSON de recetas para añadirlas a tu recetario.</p>
-              <textarea class="tools-import-input" rows="6" spellcheck="false" placeholder='[{"title":"Tortilla","ingredients":["Patata","Huevo"],"steps":["Preparar","Cuajar"]}]' data-import-recipes-json></textarea>
+              <textarea class="tools-import-input" rows="7" spellcheck="false" placeholder='[
+  {
+    "title": "Tortilla de patata",
+    "ingredients": [
+      { "name": "Patata", "qty": 500, "unit": "g" },
+      { "name": "Huevo", "qty": 4, "unit": "ud" },
+      { "name": "Aceite de oliva", "qty": 30, "unit": "ml" }
+    ],
+    "steps": [
+      "Pelar y cortar las patatas.",
+      "Freír las patatas.",
+      "Batir los huevos.",
+      "Cuajar la tortilla."
+    ],
+    "mealLunch": true,
+    "mealDinner": true
+  }
+]' data-import-recipes-json>${escapeHTML(state.importRecipesText)}</textarea>
+              <label class="tools-import-check">
+                <input type="checkbox" data-import-recipes-update ${state.importRecipesUpdateExisting ? "checked" : ""}>
+                <span>Actualizar recetas existentes si tienen el mismo título</span>
+              </label>
+              <div class="tools-import-help">Útil para completar recetas que ya existen solo con título.</div>
               <button class="primary tools-import-button" data-import-recipes-button>Importar recetas</button>
               ${state.importRecipesStatus ? `<div class="tools-import-status">${escapeHTML(state.importRecipesStatus)}</div>` : ""}
             </section>
@@ -2176,11 +2263,11 @@ document.addEventListener("DOMContentLoaded", () => {
         return response.json();
       })
       .then((data) => {
-        state.buildHash = `${APP_BUILD} · ${(data.sha || BUILD_FALLBACK).slice(0, 7)}`;
+        state.buildHash = `${APP_BUILD_LABEL} · ${(data.sha || BUILD_FALLBACK).slice(0, 7)}`;
         render();
       })
       .catch(() => {
-        state.buildHash = BUILD_FALLBACK;
+        state.buildHash = APP_BUILD_LABEL;
         render();
       });
   }
@@ -2404,10 +2491,25 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
+    root.querySelectorAll("[data-import-recipes-json]").forEach((input) => {
+      input.addEventListener("input", () => {
+        state.importRecipesText = input.value;
+      });
+    });
+
+    root.querySelectorAll("[data-import-recipes-update]").forEach((input) => {
+      input.addEventListener("change", () => {
+        state.importRecipesUpdateExisting = input.checked;
+      });
+    });
+
     root.querySelectorAll("[data-import-recipes-button]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const input = document.querySelector("[data-import-recipes-json]");
-        importRecipesFromText(input ? input.value : "");
+        const updateExisting = Boolean(document.querySelector("[data-import-recipes-update]")?.checked);
+        state.importRecipesText = input ? input.value : "";
+        state.importRecipesUpdateExisting = updateExisting;
+        importRecipesFromText(state.importRecipesText, updateExisting);
       });
     });
 
