@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
-  const APP_BUILD = "MC_V3_IMPORT_REVIEW_ROLLBACK";
-  const APP_BUILD_LABEL = "v3";
+  const APP_BUILD = "MC_V4_IMPORT_REVIEW_MODAL_FIX";
+  const APP_BUILD_LABEL = "v4";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const NUTRITION_DB = {
     "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
@@ -1023,6 +1023,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function closeActiveModal() {
+    if (state.activeModal === "recipe" && state.activeRecipeContext?.returnTo === "importReview") {
+      state.activeModal = "import-review";
+      state.activeRecipeId = null;
+      state.activeRecipeContext = null;
+      render();
+      return;
+    }
+
     state.activeModal = null;
     state.activeRecipeId = null;
     state.activeRecipeContext = null;
@@ -1486,6 +1494,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const nutrition = calculateRecipeNutrition(recipe);
     const hasNutrition = nutrition.kcal !== null;
+    const returnsToImportReview = state.activeRecipeContext?.returnTo === "importReview";
 
     return `
       <div class="modal-overlay" data-close-modal>
@@ -1578,7 +1587,8 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <div class="modal-actions">
-            <button class="primary close-modal" data-close-modal-button>Cerrar</button>
+            <button class="primary close-modal" data-close-modal-button>${returnsToImportReview ? "Volver a recetas importadas" : "Cerrar"}</button>
+            ${returnsToImportReview ? `<button class="open-recipe recipe-review-exit" data-close-review-flow>Cerrar revisión</button>` : ""}
           </div>
         </div>
       </div>
@@ -1716,15 +1726,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return `
       <div class="modal-overlay" data-close-modal>
-        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="tools-modal-title">
-          <div class="modal-head">
+        <div class="modal-card modal-card-compact modal-card-tools" role="dialog" aria-modal="true" aria-labelledby="tools-modal-title">
+          <div class="modal-head modal-head-tools">
             <div>
               <h2 class="modal-title" id="tools-modal-title">Herramientas</h2>
               <div class="modal-time">Atajos utiles para esta instalacion</div>
             </div>
+            <button class="modal-close-x" data-close-modal-button aria-label="Cerrar herramientas">×</button>
           </div>
 
-          <div class="modal-body modal-body-compact">
+          <div class="modal-body modal-body-tools">
             <div class="tool-list">
               <button class="tool-item" data-tool-action="refresh">
                 <span class="tool-title">Actualizar (recarga limpia)</span>
@@ -2660,7 +2671,7 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-open-imported-recipe]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const recipeId = btn.getAttribute("data-open-imported-recipe");
-        if (recipeId) openRecipeModal(recipeId);
+        if (recipeId) openRecipeModal(recipeId, { returnTo: "importReview" });
       });
     });
 
@@ -2759,6 +2770,15 @@ document.addEventListener("DOMContentLoaded", () => {
     root.querySelectorAll("[data-confirm-delete-recipe]").forEach((btn) => {
       btn.addEventListener("click", () => {
         deleteRecipe(btn.getAttribute("data-confirm-delete-recipe") || "");
+      });
+    });
+
+    root.querySelectorAll("[data-close-review-flow]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.activeModal = null;
+        state.activeRecipeId = null;
+        state.activeRecipeContext = null;
+        render();
       });
     });
 
