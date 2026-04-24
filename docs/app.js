@@ -1230,7 +1230,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const nutrition = calculateRecipeNutrition(recipe);
     const hasNutrition = nutrition.kcal !== null;
-    const incompleteEstimate = nutrition.warnings.length > 0;
+    const incompleteEstimate = nutrition.warnings.length > 0 || nutrition.kcal === null;
 
     return `
       <div class="modal-overlay" data-close-modal>
@@ -1286,9 +1286,9 @@ document.addEventListener("DOMContentLoaded", () => {
               `}
             </section>
 
-            ${hasNutrition ? `
             <section class="modal-section">
               <h3 class="modal-section-title">Nutrición (estimada)</h3>
+              ${hasNutrition ? `
               <div class="nutrition-info">
                 <div class="nutrition-row">
                   <span>Kcal total:</span>
@@ -1306,14 +1306,19 @@ document.addEventListener("DOMContentLoaded", () => {
                   <span>Grasas:</span>
                   <strong>${nutrition.f}g</strong>
                 </div>
-                ${incompleteEstimate ? `
+                ${nutrition.warnings.length > 0 ? `
                 <div class="nutrition-warning">
                   <small>⚠ Estimación incompleta: ${nutrition.warnings.join(", ")}</small>
                 </div>
                 ` : ""}
               </div>
+              ` : `
+              <div class="nutrition-warning">
+                <small>Estimación incompleta (faltan cantidades/unidades o ingredientes no incluidos)</small>
+                ${nutrition.warnings.length > 0 ? `<small style="display: block; margin-top: 8px; color: var(--muted);">${nutrition.warnings.join(", ")}</small>` : ""}
+              </div>
+              `}
             </section>
-            ` : ""}
           </div>
 
           <div class="modal-actions">
