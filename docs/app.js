@@ -21,6 +21,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
   const MINI_CARD_PREVIEW_LIMIT = 8;
+  const NUTRITION_DB = {
+    "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
+    "pasta": { basis: "100g", kcal: 131, p: 5, c: 25, f: 1.1 },
+    "pollo": { basis: "100g", kcal: 165, p: 31, c: 0, f: 3.6 },
+    "pimiento": { basis: "100g", kcal: 31, p: 1, c: 6, f: 0.3 },
+    "limon": { basis: "100ml", kcal: 29, p: 1.1, c: 9, f: 0.3 },
+    "yogur": { basis: "100ml", kcal: 59, p: 3.5, c: 3.3, f: 0.4 }
+  };
   const DEFAULT_RECIPES = [
     {
       id: "alb",
@@ -484,6 +492,72 @@ document.addEventListener("DOMContentLoaded", () => {
     if (parts.length && name) return `${parts.join(" ")} · ${name}`;
     return name || parts.join(" ");
   }
+
+  function normalizeIngredientName(name) {
+    if (!name || typeof name !== "string") return "";
+    let normalized = name.toLowerCase().trim();
+    normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (normalized.endsWith("s") && normalized.length > 3) {
+      const singular = normalized.slice(0, -1);
+      if (NUTRITION_DB[singular]) return singular;
+    }
+    return normalized;
+  }
+
+  function calculateRecipeNutrition(recipe) {
+    if (!recipe || !Array.isArray(recipe.ingredients)) {
+      return { kcal: null, p: null, c: null, f: null, warnings: [] };
+    }
+
+    let totalKcal = 0;
+    let totalProtein = 0;
+    let totalCarbs = 0;
+    let totalFat = 0;
+    const warnings = [];
+    let hasComputedAny = false;
+
+    recipe.ingredients.forEach((ingredient) => {
+      const qty = ingredient.qty ?? ingredient.quantity;
+      const unit = ingredient.unit;
+      const name = ingredient.name || "";
+
+      const normalized = normalizeIngredientName(name);
+      const nutritionData = NUTRITION_DB[normalized];
+
+      if (!nutritionData) {
+        if (name) warnings.push(`"${name}" no en tabla`);
+        return;
+      }
+
+      const supportedUnits = {
+        "g": 1, "gr": 1, "gramos": 1,
+        "ml": 1, "mililitros": 1
+      };
+
+      if (!qty || qty < 0 || !unit || !supportedUnits[unit.toLowerCase()]) {
+        if (name) warnings.push(`${name}: sin cantidad/unidad`);
+        return;
+      }
+
+      hasComputedAny = true;
+      const qtyInBase = Number(qty);
+      const factor = qtyInBase / 100;
+
+      totalKcal += nutritionData.kcal * factor;
+      totalProtein += nutritionData.p * factor;
+      totalCarbs += nutritionData.c * factor;
+      totalFat += nutritionData.f * factor;
+    });
+
+    return {
+      kcal: hasComputedAny ? Math.round(totalKcal) : null,
+      p: hasComputedAny ? Math.round(totalProtein * 10) / 10 : null,
+      c: hasComputedAny ? Math.round(totalCarbs * 10) / 10 : null,
+      f: hasComputedAny ? Math.round(totalFat * 10) / 10 : null,
+      warnings: warnings
+    };
+  }
+
 
   function escapeHTML(value) {
     return String(value ?? "")
@@ -1124,6 +1198,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const kcalPerServing = recipe.kcalPerServing;
     const kcalTotal = kcalPerServing !== null && contextPeople ? kcalPerServing * contextPeople : null;
 
+    const nutrition = calculateRecipeNutrition(recipe);
+    const hasNutrition = nutrition.kcal !== null;
+    const incompleteEstimate = nutrition.warnings.length > 0;
+
     return `
       <div class="modal-overlay" data-close-modal>
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recipe-modal-title">
@@ -1177,6 +1255,35 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="muted">Pendiente de completar</div>
               `}
             </section>
+
+            ${hasNutrition ? `
+            <section class="modal-section">
+              <h3 class="modal-section-title">Nutrición (estimada)</h3>
+              <div class="nutrition-info">
+                <div class="nutrition-row">
+                  <span>Kcal total:</span>
+                  <strong>${nutrition.kcal}</strong>
+                </div>
+                <div class="nutrition-row">
+                  <span>Proteínas:</span>
+                  <strong>${nutrition.p}g</strong>
+                </div>
+                <div class="nutrition-row">
+                  <span>Carbohidratos:</span>
+                  <strong>${nutrition.c}g</strong>
+                </div>
+                <div class="nutrition-row">
+                  <span>Grasas:</span>
+                  <strong>${nutrition.f}g</strong>
+                </div>
+                ${incompleteEstimate ? `
+                <div class="nutrition-warning">
+                  <small>⚠ Estimación incompleta: ${nutrition.warnings.join(", ")}</small>
+                </div>
+                ` : ""}
+              </div>
+            </section>
+            ` : ""}
           </div>
 
           <div class="modal-actions">
