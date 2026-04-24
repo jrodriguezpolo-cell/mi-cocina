@@ -26,8 +26,28 @@ document.addEventListener("DOMContentLoaded", () => {
     "pasta": { basis: "100g", kcal: 131, p: 5, c: 25, f: 1.1 },
     "pollo": { basis: "100g", kcal: 165, p: 31, c: 0, f: 3.6 },
     "pimiento": { basis: "100g", kcal: 31, p: 1, c: 6, f: 0.3 },
-    "limon": { basis: "100ml", kcal: 29, p: 1.1, c: 9, f: 0.3 },
-    "yogur": { basis: "100ml", kcal: 59, p: 3.5, c: 3.3, f: 0.4 }
+    "limon": { basis: "100g", kcal: 29, p: 1.1, c: 9, f: 0.3 },
+    "yogur": { basis: "100g", kcal: 59, p: 3.5, c: 3.3, f: 0.4 },
+    "aceite": { basis: "100g", kcal: 884, p: 0.0, c: 0.0, f: 100.0 },
+    "cebolla": { basis: "100g", kcal: 40, p: 1.1, c: 9.3, f: 0.1 },
+    "huevo": { basis: "100g", kcal: 143, p: 13.0, c: 1.1, f: 9.5 },
+    "ajo": { basis: "100g", kcal: 149, p: 6.4, c: 33.1, f: 0.5 },
+    "sal": { basis: "100g", kcal: 0, p: 0.0, c: 0.0, f: 0.0 },
+    "perejil": { basis: "100g", kcal: 36, p: 3.0, c: 6.3, f: 0.8 },
+    "vinagre": { basis: "100ml", kcal: 3, p: 0.0, c: 0.1, f: 0.0 },
+    "harina": { basis: "100g", kcal: 364, p: 10.0, c: 76.0, f: 1.0 },
+    "caldo": { basis: "100g", kcal: 250, p: 10.0, c: 20.0, f: 15.0 },
+    "guisantes": { basis: "100g", kcal: 81, p: 5.4, c: 14.5, f: 0.4 },
+    "zanahoria": { basis: "100g", kcal: 41, p: 0.9, c: 9.6, f: 0.2 },
+    "leche": { basis: "100ml", kcal: 47, p: 3.3, c: 4.8, f: 1.6 },
+    "tomate frito": { basis: "100g", kcal: 85, p: 1.5, c: 10.0, f: 4.0 },
+    "vino blanco": { basis: "100ml", kcal: 70, p: 0.0, c: 2.5, f: 0.0 },
+    "azucar": { basis: "100g", kcal: 387, p: 0.0, c: 100.0, f: 0.0 },
+    "patata": { basis: "100g", kcal: 77, p: 2.0, c: 17.0, f: 0.1 },
+    "atun": { basis: "100g", kcal: 116, p: 26.0, c: 0.0, f: 1.0 },
+    "laurel": { basis: "100g", kcal: 313, p: 7.6, c: 75.0, f: 8.4 },
+    "garbanzos": { basis: "100g", kcal: 164, p: 8.9, c: 27.4, f: 2.6 },
+    "tomate": { basis: "100g", kcal: 18, p: 0.9, c: 3.9, f: 0.2 }
   };
   const DEFAULT_RECIPES = [
     {
@@ -497,6 +517,16 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!name || typeof name !== "string") return "";
     let normalized = name.toLowerCase().trim();
     normalized = normalized.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    
+    const aliasMap = {
+      "aceite de oliva": "aceite",
+      "avecrem": "caldo",
+      "caldo concentrado": "caldo",
+      "tomatefrito": "tomate frito"
+    };
+    
+    if (aliasMap[normalized]) return aliasMap[normalized];
+    
     if (normalized.endsWith("s") && normalized.length > 3) {
       const singular = normalized.slice(0, -1);
       if (NUTRITION_DB[singular]) return singular;
