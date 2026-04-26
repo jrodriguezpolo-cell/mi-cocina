@@ -15,6 +15,13 @@ body{
   color:var(--text);
 }
 body.modal-open{overflow:hidden}
+body.recipe-selector-open{
+  position:fixed;
+  top:var(--recipeSelectorScrollTop, 0);
+  left:0;
+  right:0;
+  width:100%;
+}
 .topbar{
   position:sticky; top:0; z-index:10;
   padding:14px 14px 10px;

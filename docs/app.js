@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
-  const APP_BUILD = "MC_V5_WEEK_RECIPE_PICKER_SCROLL_FIX";
-  const APP_BUILD_LABEL = "v5";
+  const APP_BUILD = "MC_V6_WEEK_RECIPE_PICKER_SCROLL_LOCK_FIX";
+  const APP_BUILD_LABEL = "v6";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const NUTRITION_DB = {
     "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
@@ -1014,6 +1014,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function openRecipeSelector(dateISO, meal, index) {
+    const scrollY = window.scrollY || window.pageYOffset || 0;
     state.activeModal = "recipe-selector";
     state.activeRecipeId = null;
     state.activeRecipeContext = null;
@@ -1023,8 +1024,9 @@ document.addEventListener("DOMContentLoaded", () => {
       dateISO,
       meal,
       index,
-      scrollY: window.scrollY || window.pageYOffset || 0
+      scrollY
     };
+    document.body.style.setProperty("--recipeSelectorScrollTop", `${-scrollY}px`);
     state.selectorOpen = { open: true, dateISO, meal, index };
     render();
   }
@@ -2397,10 +2399,14 @@ document.addEventListener("DOMContentLoaded", () => {
   function scheduleSelectorReturnScroll() {
     const returnState = state.selectorReturn;
     state.selectorReturn = null;
-    if (state.view !== "week" || !returnState) return;
+    if (state.view !== "week" || !returnState) {
+      document.body.style.removeProperty("--recipeSelectorScrollTop");
+      return;
+    }
 
     requestAnimationFrame(() => {
       window.scrollTo({ top: returnState.scrollY || 0, behavior: "auto" });
+      document.body.style.removeProperty("--recipeSelectorScrollTop");
     });
   }
 
@@ -2455,6 +2461,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!root) return;
 
     document.body.classList.toggle("modal-open", Boolean(state.activeModal));
+    document.body.classList.toggle("recipe-selector-open", state.activeModal === "recipe-selector");
 
     root.innerHTML = `
       <header class="topbar">
