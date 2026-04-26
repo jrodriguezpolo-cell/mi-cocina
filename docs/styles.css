@@ -515,6 +515,7 @@ body.modal-open{overflow:hidden}
   justify-content:center;
   padding:12px;
   background:rgba(3,8,18,.7);
+  overscroll-behavior:contain;
 }
 .modal-card{
   width:min(100%, 680px);
@@ -539,6 +540,9 @@ body.modal-open{overflow:hidden}
 }
 .modal-card-tools{
   height:calc(100dvh - 24px);
+  max-height:calc(100dvh - 24px);
+}
+.modal-card-selector{
   max-height:calc(100dvh - 24px);
 }
 .modal-head{
@@ -594,6 +598,13 @@ body.modal-open{overflow:hidden}
 }
 .modal-body-editor{
   padding-bottom:10px;
+}
+.modal-body-selector{
+  flex:1 1 auto;
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
 }
 .modal-section + .modal-section{margin-top:18px}
 .modal-section-title{
@@ -718,10 +729,13 @@ body.modal-open{overflow:hidden}
   font-weight:800;
 }
 .selector-search{
+  flex:0 0 auto;
   margin-bottom:12px;
 }
 .selector-input{
   width:100%;
+  max-width:100%;
+  box-sizing:border-box;
   padding:11px 12px;
   border:1px solid var(--border);
   border-radius:12px;
@@ -729,10 +743,20 @@ body.modal-open{overflow:hidden}
   color:var(--text);
   font-size:14px;
 }
+.modal-body-selector .selector-input{
+  font-size:16px;
+  line-height:1.35;
+}
 .selector-list{
+  flex:1 1 auto;
+  min-height:0;
   display:flex;
   flex-direction:column;
   gap:8px;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
 }
 .selector-item{
   width:100%;

@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
-  const APP_BUILD = "MC_V4_IMPORT_REVIEW_MODAL_FIX";
-  const APP_BUILD_LABEL = "v4";
+  const APP_BUILD = "MC_V5_WEEK_RECIPE_PICKER_SCROLL_FIX";
+  const APP_BUILD_LABEL = "v5";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const NUTRITION_DB = {
     "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
@@ -764,6 +764,7 @@ document.addEventListener("DOMContentLoaded", () => {
     importRecipesUpdateExisting: false,
     lastImportResult: { created: [], updated: [], skippedDuplicates: [], invalid: [] },
     selectorOpen: { open: false, dateISO: "", meal: "lunch", index: 0 },
+    selectorReturn: null,
     recipeQuery: "",
     prefQuery: "",
     pendingWeekScroll: true,
@@ -1017,6 +1018,13 @@ document.addEventListener("DOMContentLoaded", () => {
     state.activeRecipeId = null;
     state.activeRecipeContext = null;
     state.recipeQuery = "";
+    state.pendingWeekScroll = false;
+    state.selectorReturn = {
+      dateISO,
+      meal,
+      index,
+      scrollY: window.scrollY || window.pageYOffset || 0
+    };
     state.selectorOpen = { open: true, dateISO, meal, index };
     render();
   }
@@ -1029,6 +1037,8 @@ document.addEventListener("DOMContentLoaded", () => {
       render();
       return;
     }
+
+    const shouldRestoreSelectorPosition = state.activeModal === "recipe-selector" && state.selectorReturn;
 
     state.activeModal = null;
     state.activeRecipeId = null;
@@ -1044,6 +1054,7 @@ document.addEventListener("DOMContentLoaded", () => {
       draft: createRecipeDraft()
     };
     render();
+    if (shouldRestoreSelectorPosition) scheduleSelectorReturnScroll();
   }
 
   function closeHistoryStatsModal() {
@@ -2323,7 +2334,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return `
       <div class="modal-overlay" data-close-modal>
-        <div class="modal-card modal-card-compact" role="dialog" aria-modal="true" aria-labelledby="recipe-selector-title">
+        <div class="modal-card modal-card-compact modal-card-selector" role="dialog" aria-modal="true" aria-labelledby="recipe-selector-title">
           <div class="modal-head">
             <div>
               <h2 class="modal-title" id="recipe-selector-title">Elegir receta</h2>
@@ -2331,7 +2342,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           </div>
 
-          <div class="modal-body">
+          <div class="modal-body modal-body-selector">
             <div class="selector-search">
               <input class="selector-input" type="search" placeholder="Buscar receta" value="${state.recipeQuery}" data-recipe-query>
             </div>
@@ -2380,6 +2391,16 @@ document.addEventListener("DOMContentLoaded", () => {
       input.focus();
       const queryLength = input.value.length;
       input.setSelectionRange(queryLength, queryLength);
+    });
+  }
+
+  function scheduleSelectorReturnScroll() {
+    const returnState = state.selectorReturn;
+    state.selectorReturn = null;
+    if (state.view !== "week" || !returnState) return;
+
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: returnState.scrollY || 0, behavior: "auto" });
     });
   }
 
