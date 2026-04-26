@@ -783,7 +783,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const $ = (sel) => document.querySelector(sel);
-  const BUILD_FALLBACK = APP_BUILD_LABEL;
   let toastTimer = null;
 
   function saveRecipes() {
@@ -1587,7 +1586,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <div class="modal-actions">
-            <button class="primary close-modal" data-close-modal-button>${returnsToImportReview ? "Volver a recetas importadas" : "Cerrar"}</button>
+            <button class="primary close-modal" data-close-modal-button>${returnsToImportReview ? "← Volver a recetas importadas" : "Cerrar"}</button>
             ${returnsToImportReview ? `<button class="open-recipe recipe-review-exit" data-close-review-flow>Cerrar revisión</button>` : ""}
           </div>
         </div>
@@ -2412,8 +2411,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!response.ok) throw new Error("build");
         return response.json();
       })
-      .then((data) => {
-        state.buildHash = `${APP_BUILD_LABEL} · ${(data.sha || BUILD_FALLBACK).slice(0, 7)}`;
+      .then(() => {
+        state.buildHash = APP_BUILD_LABEL;
         render();
       })
       .catch(() => {
