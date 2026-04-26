@@ -352,9 +352,6 @@ body.recipe-selector-open{
   font-size:13px;
   font-weight:800;
 }
-.day-people-reset{
-  align-self:flex-end;
-}
 .list{margin-top:12px; display:flex; flex-direction:column; gap:8px}
 .recipe-item{
   border:1px solid var(--border);
@@ -1260,10 +1257,6 @@ body.recipe-selector-open{
   }
   .slot-meal-column{
     padding:7px;
-  }
-  .day-people-reset{
-    width:100%;
-    text-align:center;
   }
   .history-week-item{
     align-items:stretch;

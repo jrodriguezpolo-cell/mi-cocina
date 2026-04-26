@@ -20,8 +20,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const RECIPES_STORAGE_KEY = "miCocina_recipes_v1";
   const PLANS_STORAGE_KEY = "miCocina_plans_v1";
   const PREFS_STORAGE_KEY = "miCocina_prefs_v1";
-  const APP_BUILD = "MC_V6_WEEK_RECIPE_PICKER_SCROLL_LOCK_FIX";
-  const APP_BUILD_LABEL = "v6";
+  const APP_BUILD = "MC_V7_REMOVE_DINERS_RESET";
+  const APP_BUILD_LABEL = "v7";
   const MINI_CARD_PREVIEW_LIMIT = 8;
   const NUTRITION_DB = {
     "arroz": { basis: "100g", kcal: 130, p: 2.7, c: 28, f: 0.3 },
@@ -1189,20 +1189,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     dayPlan[peopleField] = Math.max(1, Number(dayPlan[peopleField] || 1) + delta);
     dayPlan[overrideField] = true;
-    savePlans();
-    render();
-  }
-
-  function resetDayPeople(dateISO) {
-    const weekPlan = getWeekPlan(state.weekStartISO);
-    if (!weekPlan.days[dateISO]) weekPlan.days[dateISO] = createEmptyDayPlan();
-    const dayPlan = weekPlan.days[dateISO];
-    const defaults = getNormalizedDefaultPeople(dayPlan.workStatus, state.prefs);
-
-    dayPlan.lunchPeople = defaults.lunchPeople;
-    dayPlan.dinnerPeople = defaults.dinnerPeople;
-    dayPlan.lunchPeopleOverridden = false;
-    dayPlan.dinnerPeopleOverridden = false;
     savePlans();
     render();
   }
@@ -2629,12 +2615,6 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
 
-    root.querySelectorAll("[data-day-people-reset]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        resetDayPeople(btn.getAttribute("data-day-people-reset") || "");
-      });
-    });
-
     root.querySelectorAll("[data-autocomplete-week]").forEach((btn) => {
       btn.addEventListener("click", autocompleteWeek);
     });
@@ -2946,7 +2926,6 @@ document.addEventListener("DOMContentLoaded", () => {
                       </div>
                     </div>
                   </div>
-                  <button class="mini day-people-reset" data-day-people-reset="${dateISO}">Reset</button>
                 </div>
               </div>
             </div>
